@@ -1,0 +1,188 @@
+name: Kali Tools Standard (Ubuntu host + Tailscale + SSH)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  kali-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 720
+
+    env:
+      KALI_META: "kali-linux-large"   # change to kali-linux-top10 if you want much smaller
+      TOOLS_DIR: /opt/tools
+      GOPATH: /opt/go
+      GOBIN: /opt/go/bin
+
+    steps:
+      - name: Runner info
+        run: |
+          echo "=== Runner info ==="
+          uname -a
+          lsb_release -a || true
+          free -h
+          df -h /
+          echo "==================="
+
+      - name: Prepare environment
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -y
+          sudo apt-get upgrade -y
+
+      - name: Add Kali repo (pin low priority) - for Kali packages
+        run: |
+          echo "deb http://http.kali.org/kali kali-rolling main contrib non-free" | sudo tee /etc/apt/sources.list.d/kali.list
+          curl -fsSL https://archive.kali.org/archive-key.asc | sudo gpg --dearmor -o /usr/share/keyrings/kali-archive-keyring.gpg
+          cat <<'EOF' | sudo tee /etc/apt/preferences.d/99kali
+Package: *
+Pin: release a=kali-rolling
+Pin-Priority: 100
+EOF
+          sudo apt-get update -y
+
+      - name: Install Kali meta-package (may take long)
+        run: |
+          echo "Installing: $KALI_META"
+          sudo apt-get install -y --no-install-recommends $KALI_META || {
+            echo "Primary install failed, trying smaller meta-package..."
+            sudo apt-get install -y --no-install-recommends kali-linux-top10 || true
+          }
+          sudo dpkg --configure -a || true
+
+      - name: Create user kali / set password (kali:dolvin) and SSH setup
+        env:
+          SSH_PUB_KEY: ${{ secrets.SSH_PUB_KEY || '' }}
+        run: |
+          USER=kali
+          PASS="dolvin"
+          sudo useradd -m -s /bin/bash $USER || true
+          echo "$USER:$PASS" | sudo chpasswd
+          sudo usermod -aG sudo $USER
+          sudo mkdir -p /home/$USER/.ssh
+          sudo chown $USER:$USER /home/$USER/.ssh
+          sudo chmod 700 /home/$USER/.ssh
+
+          if [ -n "$SSH_PUB_KEY" ]; then
+            echo "$SSH_PUB_KEY" | sudo tee /home/$USER/.ssh/authorized_keys > /dev/null
+            sudo chown $USER:$USER /home/$USER/.ssh/authorized_keys
+            sudo chmod 600 /home/$USER/.ssh/authorized_keys
+            echo "✅ SSH public key installed for $USER (use key auth)."
+          else
+            echo "No SSH_PUB_KEY secret found — login with password: $PASS"
+          fi
+
+          sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config || true
+          sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config || true
+          sudo systemctl restart ssh || true
+
+      - name: Add swap (4GB) and install zram-tools
+        run: |
+          if [ ! -f /swapfile ]; then
+            sudo fallocate -l 4G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+            echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+            echo "✅ Swapfile 4G created"
+          else
+            echo "Swapfile exists"
+          fi
+          sudo apt-get install -y zram-tools || true
+
+      - name: Install latest Go (auto) and tools dir
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends build-essential git wget curl jq unzip python3-pip htop net-tools tcpdump nmap
+          # get latest Go
+          echo "Fetching latest Go..."
+          latest_json=$(curl -fsS https://go.dev/dl/?mode=json)
+          latest_ver=$(echo "$latest_json" | jq -r '.[0].version')
+          tarball=$(echo "$latest_json" | jq -r '.[0].files[] | select(.os=="linux" and .arch=="amd64") | .filename')
+          url="https://go.dev/dl/${tarball}"
+          curl -fsSL -o /tmp/${tarball} "$url"
+          sudo rm -rf /usr/local/go || true
+          sudo tar -C /usr/local -xzf /tmp/${tarball}
+          rm -f /tmp/${tarball}
+          sudo mkdir -p ${TOOLS_DIR} ${GOPATH}/bin
+          sudo chown $USER:$USER ${TOOLS_DIR} ${GOPATH}
+          echo "export PATH=\$PATH:/usr/local/go/bin:${GOBIN}" | sudo tee /etc/profile.d/go_path.sh
+          source /etc/profile.d/go_path.sh || true
+          /usr/local/go/bin/go version || true
+
+      - name: Install Go-based and Python tools (popular pentest tools)
+        run: |
+          export PATH=$PATH:/usr/local/go/bin:${GOBIN}
+          /usr/local/go/bin/go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest || true
+          /usr/local/go/bin/go install github.com/projectdiscovery/httpx/cmd/httpx@latest || true
+          /usr/local/go/bin/go install github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest || true
+          /usr/local/go/bin/go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest || true
+          /usr/local/go/bin/go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest || true
+          /usr/local/go/bin/go install github.com/ffuf/ffuf@latest || true
+          # optionally install other go tools (uncomment as needed)
+          # /usr/local/go/bin/go install github.com/projectdiscovery/chaos-client/cmd/chaos@latest || true
+          sudo pip3 install trufflehog wfuzz || true
+          echo "✅ Go & Python tools installed (to /usr/local/go/bin and ${GOBIN})"
+
+      - name: Performance tweaks
+        run: |
+          sudo sysctl -w net.core.somaxconn=1024
+          sudo sysctl -w fs.file-max=100000
+          sudo sh -c 'ulimit -n 65536 || true'
+
+      - name: Install Tailscale and connect
+        env:
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          if [ -z "$TAILSCALE_AUTH_KEY" ]; then
+            echo "ERROR: Set secret TAILSCALE_AUTH_KEY in repo settings."
+            exit 1
+          fi
+          curl -fsSL https://tailscale.com/install.sh | sh
+          sudo tailscale up --authkey=${TAILSCALE_AUTH_KEY} --hostname=gh-runner-${{ github.run_id }} || (sudo tailscaled & sleep 2 && sudo tailscale up --authkey=${TAILSCALE_AUTH_KEY} --hostname=gh-runner-${{ github.run_id }})
+
+      - name: Wait for Tailscale IP & show access info
+        run: |
+          retries=0
+          ip=""
+          while [ $retries -lt 12 ] && [ -z "$ip" ]; do
+            ip=$(tailscale ip -4 2>/dev/null || true)
+            if [ -z "$ip" ]; then
+              sleep 5
+              retries=$((retries+1))
+            fi
+          done
+          if [ -z "$ip" ]; then
+            echo "Failed to get Tailscale IP"
+            tailscale status || true
+            exit 1
+          fi
+          echo "TAILSCALE_IP=$ip" >> $GITHUB_ENV
+          echo "========================================="
+          echo "✅ CONNECT INFO"
+          echo "IP (Tailscale): $ip"
+          echo "User: kali"
+          echo "Password: dolvin"
+          echo "SSH (if key provided) : ssh kali@$ip"
+          echo "If no SSH key: ssh kali@$ip (password: dolvin)"
+          echo "Tools dir: /usr/local/go/bin and /opt/go/bin"
+          echo "========================================="
+
+      - name: Final check (disk/mem/tools)
+        run: |
+          echo "Disk usage:"
+          df -h /
+          echo ""
+          echo "Memory:"
+          free -h
+          echo ""
+          echo "Installed tools sample:"
+          ls -la /usr/local/go/bin || true
+          ls -la /opt/go/bin || true
+
+      - name: Keep runner alive
+        run: |
+          echo "Runner will stay alive until you cancel the workflow. Cancel the run in GitHub Actions to terminate."
+          while true; do
+            echo "alive: $(date)"; sleep 300
+          done
