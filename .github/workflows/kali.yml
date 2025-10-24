@@ -1,0 +1,48 @@
+name: Linux SSH
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Update Packages
+        run: |
+          sudo apt update -y
+          sudo apt install -y openssh-server sudo
+
+      - name: Create SSH User
+        run: |
+          sudo useradd -m linuxuser
+          echo "linuxuser:Linux123!@" | sudo chpasswd
+          sudo usermod -aG sudo linuxuser
+          sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo systemctl restart ssh
+          echo "✅ User Created: linuxuser / Linux123!@"
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=linux-${{ github.run_id }}
+          sudo tailscale ip -4 > /tmp/tailscale-ip
+
+      - name: Show Connection Info
+        run: |
+          echo "=========================="
+          echo "✅ SSH Ready"
+          echo "User     : linuxuser"
+          echo "Password : Linux123!@"
+          echo "IP       : $(cat /tmp/tailscale-ip)"
+          echo "Connect  : ssh linuxuser@$(cat /tmp/tailscale-ip)"
+          echo "=========================="
+
+      - name: Keep Runner Alive
+        run: |
+          while true; do
+            echo "🔗 Linux Active at $(date)"
+            sleep 300
+          done
