@@ -40,7 +40,10 @@ jobs:
                          [char[]](91..96) + [char[]](123..126)) # Special characters
           }
           $rawPassword = @()
- $rawPassword += $charSet.Upper | Get-Random -Count 4
+
+
+          
+          $rawPassword += $charSet.Upper | Get-Random -Count 4
           $rawPassword += $charSet.Lower | Get-Random -Count 4
           $rawPassword += $charSet.Number | Get-Random -Count 4
           $rawPassword += $charSet.Special | Get-Random -Count 4
