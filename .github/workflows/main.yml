@@ -1,63 +1,68 @@
-name: Kali Tools Standard (Ubuntu host + Tailscale + SSH)
+name: Kali Full Tools (Ubuntu host, install Kali packages + latest Go + tools)
 
+# manual trigger
 on:
   workflow_dispatch:
 
 jobs:
-  kali-tools:
+  kali-full:
     runs-on: ubuntu-latest
-    timeout-minutes: 720
+    timeout-minutes: 720   # 12 jam, paket banyak dan butuh waktu
 
     env:
-      KALI_META: "kali-linux-large"   # change to kali-linux-top10 if you want much smaller
+      KALI_META: "kali-linux-full"   # change to kali-linux-large / kali-linux-top10 to reduce size
       TOOLS_DIR: /opt/tools
       GOPATH: /opt/go
       GOBIN: /opt/go/bin
 
     steps:
-      - name: Runner info
+      - name: Basic: show runner info
         run: |
-          echo "=== Runner info ==="
+          echo "Runner info:"
           uname -a
           lsb_release -a || true
           free -h
           df -h /
-          echo "==================="
+          echo "----"
 
-      - name: Prepare environment
+      - name: Set noninteractive and update
         run: |
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update -y
           sudo apt-get upgrade -y
 
-      - name: Add Kali repo (pin low priority)
+      - name: Add Kali rolling repository (CAREFUL)
         run: |
+          # We add Kali repo so we can install Kali meta-packages.
+          # This can be risky on Ubuntu; we will pin Kali low priority to avoid accidental upgrades.
           echo "deb http://http.kali.org/kali kali-rolling main contrib non-free" | sudo tee /etc/apt/sources.list.d/kali.list
+          # add Kali archive key
           curl -fsSL https://archive.kali.org/archive-key.asc | sudo gpg --dearmor -o /usr/share/keyrings/kali-archive-keyring.gpg
-
-          sudo bash -c 'cat > /etc/apt/preferences.d/99kali << EOF
+          # pin priority low so Ubuntu base is preferred; explicit installs will still work
+          cat <<'EOF' | sudo tee /etc/apt/preferences.d/99kali
 Package: *
 Pin: release a=kali-rolling
 Pin-Priority: 100
-EOF'
-
+EOF
           sudo apt-get update -y
 
-      - name: Install Kali meta-package (may take long)
+      - name: Install Kali meta-package (this may be large — watch logs)
         run: |
-          echo "Installing: $KALI_META"
+          echo "Installing Kali meta-package: $KALI_META"
+          # try install; allow apt to resolve; it may take long and use big disk
           sudo apt-get install -y --no-install-recommends $KALI_META || {
-            echo "Primary install failed, trying smaller meta-package..."
-            sudo apt-get install -y --no-install-recommends kali-linux-top10 || true
+            echo "Primary install failed; attempting smaller meta-package..."
+            sudo apt-get install -y --no-install-recommends kali-linux-large || true
           }
+          # give dpkg a bit to configure if pending
           sudo dpkg --configure -a || true
 
-      - name: Create user kali / set password (kali:dolvin) and SSH setup
+      - name: Create non-root user & SSH (recommended to use SSH key)
         env:
           SSH_PUB_KEY: ${{ secrets.SSH_PUB_KEY || '' }}
         run: |
-          USER=kali
-          PASS="dolvin"
+          USER=linuxuser
+          PASS="Linux123!@"
           sudo useradd -m -s /bin/bash $USER || true
           echo "$USER:$PASS" | sudo chpasswd
           sudo usermod -aG sudo $USER
@@ -69,122 +74,99 @@ EOF'
             echo "$SSH_PUB_KEY" | sudo tee /home/$USER/.ssh/authorized_keys > /dev/null
             sudo chown $USER:$USER /home/$USER/.ssh/authorized_keys
             sudo chmod 600 /home/$USER/.ssh/authorized_keys
-            echo "✅ SSH public key installed for $USER (use key auth)."
+            echo "SSH key installed for $USER"
           else
-            echo "No SSH_PUB_KEY secret found — login with password: $PASS"
+            echo "No SSH_PUB_KEY secret found. Use password: $PASS"
           fi
 
           sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config || true
           sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config || true
           sudo systemctl restart ssh || true
 
-      - name: Add swap (4GB) and install zram-tools
+      - name: Add swap (4GB) + install zram-tools
         run: |
+          # create swapfile if not exists
           if [ ! -f /swapfile ]; then
             sudo fallocate -l 4G /swapfile
             sudo chmod 600 /swapfile
             sudo mkswap /swapfile
             sudo swapon /swapfile
             echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-            echo "✅ Swapfile 4G created"
+            echo "Swap 4G created"
           else
-            echo "Swapfile exists"
+            echo "Swap exists"
           fi
           sudo apt-get install -y zram-tools || true
 
-      - name: Install latest Go (auto) and tools dir
+      - name: Install latest Go (resolve dynamically from go.dev)
         run: |
           set -euo pipefail
-          sudo apt-get install -y --no-install-recommends build-essential git wget curl jq unzip python3-pip htop net-tools tcpdump nmap
-          # get latest Go
-          echo "Fetching latest Go..."
+          echo "Fetching latest go version from go.dev..."
+          # use JSON endpoint to get latest stable
           latest_json=$(curl -fsS https://go.dev/dl/?mode=json)
-          latest_ver=$(echo "$latest_json" | jq -r '.[0].version')
-          tarball=$(echo "$latest_json" | jq -r '.[0].files[] | select(.os=="linux" and .arch=="amd64") | .filename')
+          latest_ver=$(echo "$latest_json" | jq -r '.[0].version' )
+          echo "Latest Go: $latest_ver"
+          tarball=$(echo "$latest_json" | jq -r '.[0].files[] | select(.os=="linux" and .arch=="amd64") | .filename' )
           url="https://go.dev/dl/${tarball}"
+          echo "Downloading $url"
           curl -fsSL -o /tmp/${tarball} "$url"
           sudo rm -rf /usr/local/go || true
           sudo tar -C /usr/local -xzf /tmp/${tarball}
           rm -f /tmp/${tarball}
+          # symlink and PATH
+          echo "export PATH=\$PATH:/usr/local/go/bin:/opt/go/bin" | sudo tee /etc/profile.d/go_path.sh
+          source /etc/profile.d/go_path.sh || true
+          /usr/local/go/bin/go version
+
+      - name: Create tools directory and install common tools (apt + go + pip)
+        run: |
           sudo mkdir -p ${TOOLS_DIR} ${GOPATH}/bin
           sudo chown $USER:$USER ${TOOLS_DIR} ${GOPATH}
-          echo "export PATH=\$PATH:/usr/local/go/bin:${GOBIN}" | sudo tee /etc/profile.d/go_path.sh
-          source /etc/profile.d/go_path.sh || true
-          /usr/local/go/bin/go version || true
-
-      - name: Install Go-based and Python tools (popular pentest tools)
-        run: |
-          export PATH=$PATH:/usr/local/go/bin:${GOBIN}
+          sudo apt-get install -y --no-install-recommends build-essential git python3-pip unzip wget jq htop net-tools tcpdump nmap masscan
+          # go tools (installed as unprivileged user into /opt/go/bin)
           /usr/local/go/bin/go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest || true
           /usr/local/go/bin/go install github.com/projectdiscovery/httpx/cmd/httpx@latest || true
           /usr/local/go/bin/go install github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest || true
           /usr/local/go/bin/go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest || true
           /usr/local/go/bin/go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest || true
           /usr/local/go/bin/go install github.com/ffuf/ffuf@latest || true
-          # optionally install other go tools (uncomment as needed)
-          # /usr/local/go/bin/go install github.com/projectdiscovery/chaos-client/cmd/chaos@latest || true
+          # install some python tools
           sudo pip3 install trufflehog wfuzz || true
-          echo "✅ Go & Python tools installed (to /usr/local/go/bin and ${GOBIN})"
+          echo "Installed core tools. Binaries in /usr/local/go/bin and /opt/go/bin"
 
-      - name: Performance tweaks
+      - name: Add /opt/go/bin to PATH for linuxuser and root
         run: |
+          echo 'export PATH=$PATH:/usr/local/go/bin:/opt/go/bin' | sudo tee -a /root/.bashrc
+          echo 'export PATH=$PATH:/usr/local/go/bin:/opt/go/bin' | sudo tee -a /home/linuxuser/.bashrc
+          sudo chown linuxuser:linuxuser /home/linuxuser/.bashrc || true
+
+      - name: Performance sysctl tweaks (network / file limits)
+        run: |
+          # Be conservative; tweaks that help scanning / concurrency
           sudo sysctl -w net.core.somaxconn=1024
           sudo sysctl -w fs.file-max=100000
           sudo sh -c 'ulimit -n 65536 || true'
 
-      - name: Install Tailscale and connect
-        env:
-          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+      - name: Show final status & connection info
         run: |
-          if [ -z "$TAILSCALE_AUTH_KEY" ]; then
-            echo "ERROR: Set secret TAILSCALE_AUTH_KEY in repo settings."
-            exit 1
-          fi
-          curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey=${TAILSCALE_AUTH_KEY} --hostname=gh-runner-${{ github.run_id }} || (sudo tailscaled & sleep 2 && sudo tailscale up --authkey=${TAILSCALE_AUTH_KEY} --hostname=gh-runner-${{ github.run_id }})
-
-      - name: Wait for Tailscale IP & show access info
-        run: |
-          retries=0
-          ip=""
-          while [ $retries -lt 12 ] && [ -z "$ip" ]; do
-            ip=$(tailscale ip -4 2>/dev/null || true)
-            if [ -z "$ip" ]; then
-              sleep 5
-              retries=$((retries+1))
-            fi
-          done
-          if [ -z "$ip" ]; then
-            echo "Failed to get Tailscale IP"
-            tailscale status || true
-            exit 1
-          fi
-          echo "TAILSCALE_IP=$ip" >> $GITHUB_ENV
-          echo "========================================="
-          echo "✅ CONNECT INFO"
-          echo "IP (Tailscale): $ip"
-          echo "User: kali"
-          echo "Password: dolvin"
-          echo "SSH (if key provided) : ssh kali@$ip"
-          echo "If no SSH key: ssh kali@$ip (password: dolvin)"
-          echo "Tools dir: /usr/local/go/bin and /opt/go/bin"
-          echo "========================================="
-
-      - name: Final check (disk/mem/tools)
-        run: |
-          echo "Disk usage:"
-          df -h /
-          echo ""
-          echo "Memory:"
-          free -h
-          echo ""
-          echo "Installed tools sample:"
+          echo "----------------------------"
+          echo "Kali meta-pkg: $KALI_META"
+          echo "Tools dir: ${TOOLS_DIR}"
+          echo "Go: $(/usr/local/go/bin/go version || true)"
+          echo "User: linuxuser (passwd: Linux123!@ if no SSH key provided)"
+          echo "Check installed tools:"
           ls -la /usr/local/go/bin || true
           ls -la /opt/go/bin || true
+          echo "Disk usage:"
+          df -h /
+          echo "Memory:"
+          free -h
+          echo "If apt failed for space/conflict, consider switching to a self-hosted runner (recommended for heavy setups)."
+          echo "----------------------------"
 
-      - name: Keep runner alive
+      - name: Keep runner alive (until manual cancel or timeout)
         run: |
-          echo "Runner will stay alive until you cancel the workflow. Cancel the run in GitHub Actions to terminate."
+          echo "Runner active. Cancel the workflow in GitHub Actions to stop."
           while true; do
             echo "alive: $(date)"; sleep 300
           done
