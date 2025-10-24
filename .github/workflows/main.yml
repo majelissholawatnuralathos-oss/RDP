@@ -30,15 +30,17 @@ jobs:
           sudo apt-get update -y
           sudo apt-get upgrade -y
 
-      - name: Add Kali repo (pin low priority) - for Kali packages
+      - name: Add Kali repo (pin low priority)
         run: |
           echo "deb http://http.kali.org/kali kali-rolling main contrib non-free" | sudo tee /etc/apt/sources.list.d/kali.list
           curl -fsSL https://archive.kali.org/archive-key.asc | sudo gpg --dearmor -o /usr/share/keyrings/kali-archive-keyring.gpg
-          cat <<'EOF' | sudo tee /etc/apt/preferences.d/99kali
+
+          sudo bash -c 'cat > /etc/apt/preferences.d/99kali << EOF
 Package: *
 Pin: release a=kali-rolling
 Pin-Priority: 100
-EOF
+EOF'
+
           sudo apt-get update -y
 
       - name: Install Kali meta-package (may take long)
