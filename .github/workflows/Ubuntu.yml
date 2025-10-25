@@ -1,4 +1,4 @@
-name: GUI + Go + Snap (minimal)
+name: GUI + Go + Snap (minimal) - uses TALESCALE_AUTH_KEY
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ jobs:
       PASSWORD: "whatsapp2"   # WARNING: plaintext in workflow (unsafe for public repos)
 
     steps:
-      - name: Checkout (no tools, just housekeeping)
+      - name: Checkout (no tools, housekeeping)
         uses: actions/checkout@v4
 
       - name: Show runner info
@@ -79,6 +79,41 @@ jobs:
           # quick verify
           /usr/local/go/bin/go version || go version || true
 
+      - name: Install & Start Tailscale (uses secret TALESCALE_AUTH_KEY)
+        env:
+          TALESCALE_AUTH_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
+        run: |
+          if [ -z "${{ secrets.TALESCALE_AUTH_KEY }}" ]; then
+            echo "ERROR: Set repository secret TALESCALE_AUTH_KEY (value = tskey-auth-... )"
+            exit 1
+          fi
+          curl -fsSL https://tailscale.com/install.sh | sh
+          # attempt to bring it up (retry pattern)
+          sudo tailscale up --authkey=${{ secrets.TALESCALE_AUTH_KEY }} --hostname=gui-runner-${{ github.run_id }} || (sudo tailscaled & sleep 2 && sudo tailscale up --authkey=${{ secrets.TALESCALE_AUTH_KEY }} --hostname=gui-runner-${{ github.run_id }})
+
+      - name: Wait for Tailscale IP & show connection info
+        run: |
+          retries=0
+          ip=""
+          while [ $retries -lt 20 ] && [ -z "$ip" ]; do
+            ip=$(tailscale ip -4 2>/dev/null || true)
+            if [ -z "$ip" ]; then
+              sleep 3
+              retries=$((retries+1))
+            fi
+          done
+          if [ -z "$ip" ]; then
+            echo "Failed to get Tailscale IP"
+            tailscale status || true
+            exit 1
+          fi
+          echo "========================================="
+          echo "CONNECT INFO:"
+          echo "X2Go (recommended): Host: $ip  (SSH port 22)  Username: ${{ env.USERNAME }}  Password: ${{ env.PASSWORD }}"
+          echo "Remmina (RDP): Server: $ip  Protocol: RDP (xrdp) Username: ${{ env.USERNAME }} Password: ${{ env.PASSWORD }}"
+          echo "========================================="
+          echo "TAILSCALE_IP=$ip" >> $GITHUB_ENV
+
       - name: Final checks (GUI + Go + snap)
         run: |
           echo "== quick checks =="
@@ -97,7 +132,7 @@ jobs:
 
       - name: Keep runner alive (manual cancel to stop)
         run: |
-          echo "Runner active. Cancel the workflow in Actions UI to terminate."
+          echo "Runner active. Cancel the workflow in GitHub Actions to terminate."
           while true; do
             echo "alive: $(date)"; sleep 300
           done
