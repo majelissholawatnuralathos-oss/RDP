@@ -12,7 +12,6 @@ jobs:
       # Jangan taruh password nyata di sini — set as repo secret (Settings → Secrets)
       DOLVIN_PASS: ${{ secrets.DOLVIN_PASS }}
       GO_VERSION: "1.21.11"   # ganti kalau mau versi lain
-      GOPATH: ${{ runner.temp }}/go
 
     steps:
       - name: Prepare runner
@@ -20,10 +19,12 @@ jobs:
           sudo apt-get update -y
           sudo apt-get upgrade -y
           # small swap so heavy builds won't OOM on runner
-          sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          if [ ! -f /swapfile ]; then
+            sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+          fi
           sudo sysctl vm.swappiness=10
           free -h
 
@@ -45,10 +46,11 @@ jobs:
       - name: Install Snap & snaps (optional GUI helpers)
         run: |
           sudo apt-get install -y snapd
-          sudo snap install --classic nmap   || true
           # note: some snaps may not be useful on CI runners, but included for convenience
+          # sudo snap install --classic nmap || true
 
       - name: Install Go (manual) and setup env
+        id: go_install
         run: |
           set -e
           GO_VER="${{ env.GO_VERSION }}"
@@ -57,43 +59,41 @@ jobs:
           curl -fsSL "https://golang.org/dl/${TGZ}" -o "/tmp/${TGZ}"
           sudo rm -rf /usr/local/go
           sudo tar -C /usr/local -xzf "/tmp/${TGZ}"
+          # use a temporary GOPATH for the runner
+          export GOPATH="/tmp/go"
           mkdir -p "${GOPATH}/bin"
-          # add to PATH for this run
-          echo "export PATH=/usr/local/go/bin:${GOPATH}/bin:\$PATH" >> $GITHUB_ENV
-          echo "export GOPATH=${GOPATH}" >> $GITHUB_ENV
+          echo "GOPATH=${GOPATH}" >> $GITHUB_ENV
+          echo "PATH=/usr/local/go/bin:${GOPATH}/bin:${PATH}" >> $GITHUB_ENV
           /usr/local/go/bin/go version
 
       - name: Install common Go-based tools
+        env:
+          PATH: /usr/local/go/bin:/tmp/go/bin:${{ env.PATH }}
+          GOPATH: /tmp/go
         run: |
-          # make sure go is available in the current shell
-          export PATH=/usr/local/go/bin:${GOPATH}/bin:$PATH
-          export GOPATH=${GOPATH}
+          set -e
+          export PATH=/usr/local/go/bin:/tmp/go/bin:$PATH
+          export GOPATH=/tmp/go
           go install github.com/OWASP/Amass/v3/...@latest
           go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
           go install github.com/ffuf/ffuf@latest
-          go install github.com/jaeles-project/gospider@latest || true
           go install github.com/tomnomnom/httprobe@latest
           go install github.com/tomnomnom/gf@latest
           go install github.com/tomnomnom/assetfinder@latest
           go install github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest
-          go install github.com/jaeles-project/gf@latest || true
-          # copy go binaries to /usr/local/bin for convenience
-          sudo cp -v ${GOPATH}/bin/* /usr/local/bin/ || true
+          # copy go binaries to /usr/local/bin for convenience (ignore errors)
+          sudo cp -v /tmp/go/bin/* /usr/local/bin/ || true
 
       - name: Install some community binaries (deb / tar)
         run: |
           set -e
-          # gobuster
+          # gobuster (try apt first, fallback to tarball)
           sudo apt-get install -y gobuster || ( wget -qO- https://github.com/OJ/gobuster/releases/latest/download/gobuster-linux-amd64.tar.gz | sudo tar -xz -C /usr/local/bin gobuster )
-          # wfuzz via pip
           sudo -H python3 -m pip install wfuzz || true
-          # install massdns (example)
-          # (left out heavy/complex builds to keep runner friendly)
 
       - name: Create user 'dolvin' (optional)
         if: env.DOLVIN_PASS != ''
         run: |
-          # create user and set password from secret. If secret not set, skip.
           sudo useradd -m -s /bin/bash dolvin || true
           echo "dolvin:${DOLVIN_PASS}" | sudo chpasswd
           sudo usermod -aG sudo dolvin || true
@@ -106,10 +106,10 @@ jobs:
           masscan --version || true
           python3 --version
           go version || true
-          echo "=== tools in /usr/local/bin (sample) ==="
+          echo "=== sample /usr/local/bin ==="
           ls -1 /usr/local/bin | sed -n '1,120p' || true
-          echo "=== go bins ==="
-          ls -1 ${GOPATH}/bin || true
+          echo "=== go bins (/tmp/go/bin) ==="
+          ls -1 /tmp/go/bin || true
 
       - name: Save artifact (optional logs)
         uses: actions/upload-artifact@v4
