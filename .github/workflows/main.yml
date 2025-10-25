@@ -1,4 +1,4 @@
-# File: fixed-linux-rdp.yml
+# File: fixed-linux-rdp.yml (Versi Perbaikan)
 name: Secure Linux RDP (Tailscale) - Fixed Credentials
 
 on:
@@ -6,18 +6,24 @@ on:
 
 jobs:
   secure-linux-rdp:
-    # Menggunakan runner Ubuntu (lebih stabil dan cepat)
     runs-on: ubuntu-latest
     timeout-minutes: 3600
 
     steps:
-      - name: Install Tailscale, Desktop Environment (Xfce), and XRDP
+      # --- STEP 1: Instalasi XRDP dan Xfce ---
+      - name: Install Desktop Environment (Xfce) and XRDP
         run: |
-          # Perbarui sistem dan instal paket inti
+          # Perbarui sistem dan instal paket RDP/GUI terlebih dahulu
           sudo apt update
-          curl -fsSL https://tailscale.com/install.sh | sh
+          sudo apt install -y xrdp xfce4 xfce4-goodies dbus-x11
 
           # --- Konfigurasi XRDP untuk Xfce ---
+          # Pastikan file konfigurasi ada sebelum dimodifikasi
+          if [ ! -f /etc/xrdp/startwm.sh ]; then
+            echo "Error: /etc/xrdp/startwm.sh not found after XRDP installation."
+            exit 1
+          fi
+
           echo xfce4-session > ~/.xsession
           # Backup startwm.sh dan pastikan sesi Xfce dijalankan
           sudo cp /etc/xrdp/startwm.sh /etc/xrdp/startwm.sh.bak
@@ -26,31 +32,14 @@ jobs:
           
           # Restart layanan XRDP
           sudo systemctl restart xrdp
-          
-      - name: Create Fixed RDP User
-        id: create_user
-        run: |
-          # --- Kredensial Tetap Sesuai Permintaan ---
-          USERNAME="dolvin"
-          PASSWORD="whatsapp2"
-          
-          # Tambahkan user baru
-          sudo adduser --disabled-password --gecos "" $USERNAME
-          # Set password untuk user
-          echo "$USERNAME:$PASSWORD" | sudo chpasswd
-          # Tambahkan user ke grup sudo (Administrator) dan ssl-cert (untuk XRDP)
-          sudo usermod -aG sudo,ssl-cert $USERNAME
 
-          # Simpan kredensial ke environment GITHUB_ENV
-          echo "RDP_USER=$USERNAME" >> $GITHUB_ENV
-          echo "RDP_PASSWORD=$PASSWORD" >> $GITHUB_ENV
-          echo "RDP_CREDS=User: $USERNAME | Password: $PASSWORD" >> $GITHUB_ENV
-          
-          echo "User $USERNAME created."
-          
-      - name: Establish Tailscale Connection (Using TALESCALE_AUTH_KEY)
+      # --- STEP 2: Instalasi dan Koneksi Tailscale ---
+      - name: Install and Connect Tailscale
         run: |
-          # Log in Tailscale menggunakan Secret Key yang BARU (TALESCALE_AUTH_KEY)
+          # Metode instalasi Tailscale yang direkomendasikan untuk Linux
+          curl -fsSL https://tailscale.com/install.sh | sh
+          
+          # Log in Tailscale menggunakan Secret Key
           sudo tailscale up --authkey=${{ secrets.TALESCALE_AUTH_KEY }} --hostname=gh-linux-runner-$GITHUB_RUN_ID
           
           # Tunggu Tailscale IP ditetapkan
@@ -68,6 +57,24 @@ jobs:
           fi
           
           echo "TAILSCALE_IP=$TS_IP" >> $GITHUB_ENV
+
+      # --- STEP 3: Pembuatan User ---
+      - name: Create Fixed RDP User
+        id: create_user
+        run: |
+          USERNAME="dolvin"
+          PASSWORD="whatsapp2"
+          
+          # Tambahkan user baru
+          sudo adduser --disabled-password --gecos "" $USERNAME
+          # Set password untuk user
+          echo "$USERNAME:$PASSWORD" | sudo chpasswd
+          # Tambahkan user ke grup sudo (Administrator) dan ssl-cert (untuk XRDP)
+          sudo usermod -aG sudo,ssl-cert $USERNAME
+
+          echo "RDP_USER=$USERNAME" >> $GITHUB_ENV
+          echo "RDP_PASSWORD=$PASSWORD" >> $GITHUB_ENV
+          echo "RDP_CREDS=User: $USERNAME | Password: $PASSWORD" >> $GITHUB_ENV
           
       - name: Verify RDP Accessibility and Print Credentials
         run: |
@@ -83,7 +90,6 @@ jobs:
           echo "Protocol: RDP (Gunakan Remmina)"
           echo -e "=========================\n"
           
-          # Pertahankan runner tetap aktif selama timeout
           while true; do
             echo "[$(date)] RDP Active - Use Ctrl+C in workflow to terminate"
             sleep 300
