@@ -53,23 +53,7 @@ jobs:
           echo "PATH=/usr/local/go/bin:${GOPATH}/bin:${PATH}" >> $GITHUB_ENV
           /usr/local/go/bin/go version
 
-      - name: Install common Go-based tools
-        env:
-          PATH: /usr/local/go/bin:/tmp/go/bin:${{ env.PATH }}
-          GOPATH: /tmp/go
-        run: |
-          set -e
-          export PATH=/usr/local/go/bin:/tmp/go/bin:$PATH
-          export GOPATH=/tmp/go
-          go install github.com/OWASP/Amass/v3/...@latest
-          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-          go install github.com/ffuf/ffuf@latest
-          go install github.com/tomnomnom/httprobe@latest
-          go install github.com/tomnomnom/gf@latest
-          go install github.com/tomnomnom/assetfinder@latest
-          go install github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest
-          # copy go binaries to /usr/local/bin for convenience (ignore errors)
-          sudo cp -v /tmp/go/bin/* /usr/local/bin/ || true
+      
 
       - name: Install some community binaries (deb / tar)
         run: |
