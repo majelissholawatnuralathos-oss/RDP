@@ -1,0 +1,100 @@
+name: Secure RDP to Lightweight Linux (Tailscale)
+
+on:
+  # Memungkinkan untuk menjalankan workflow secara manual dari GitHub UI
+  workflow_dispatch:
+
+jobs:
+  secure-rdp:
+    # Menggunakan runner Linux paling ringan
+    runs-on: ubuntu-latest
+    # Batas waktu maksimal, diatur ke 3600 menit (60 jam, maksimal)
+    timeout-minutes: 3600
+
+    steps:
+      - name: Configure and Install Tailscale
+        run: |
+          echo "Installing Tailscale..."
+          # Install Tailscale di Linux menggunakan script resmi
+          curl -fsSL https://tailscale.com/install.sh | sh
+          
+          # Mulai Tailscale daemon
+          sudo tailscaled &
+          
+          # Koneksikan Tailscale menggunakan Auth Key yang Anda minta: TALESCALE_AUTH_KEY
+          # PERHATIKAN PENGGUNAAN NAMA SECRET KEY DI BAWAH INI
+          sudo tailscale up --authkey=${{ secrets.TALESCALE_AUTH_KEY }} --hostname=gh-linux-rdp-$GITHUB_RUN_ID --accept-routes
+          
+          # Tunggu hingga Tailscale mendapatkan IP dan simpan
+          TS_IP=""
+          RETRY_COUNT=0
+          while [ -z "$TS_IP" ] && [ $RETRY_COUNT -lt 10 ]; do
+            TS_IP=$(sudo tailscale ip -4)
+            if [ -n "$TS_IP" ]; then
+              break
+            fi
+            echo "Waiting for Tailscale IP... ($RETRY_COUNT/10)"
+            sleep 5
+            RETRY_COUNT=$((RETRY_COUNT+1))
+          done
+
+          if [ -z "$TS_IP" ]; then
+            echo "Tailscale IP not assigned after multiple retries. Exiting."
+            exit 1
+          fi
+          echo "TAILSCALE_IP=$TS_IP" >> $GITHUB_ENV
+          echo "Tailscale IP assigned: $TS_IP"
+
+      - name: Install Desktop Environment (Xfce) and RDP Server (xrdp)
+        run: |
+          echo "Installing Xfce and xrdp..."
+          # Perbarui daftar paket dan instal paket yang diperlukan
+          sudo apt-get update
+          # Instal Xfce4 sebagai desktop environment ringan dan xrdp
+          sudo apt-get install -y xfce4 xrdp xfce4-terminal
+          
+          # Konfigurasi xrdp untuk menggunakan Xfce4
+          echo xfce4-session > ~/.xsession
+          sudo cp ~/.xsession /etc/skel/
+          
+          # Izinkan koneksi RDP
+          sudo systemctl enable xrdp
+          sudo systemctl restart xrdp
+
+      - name: Create RDP User with Secure Password
+        id: create_user
+        run: |
+          echo "Creating secure RDP user..."
+          # Hasilkan password acak yang aman (minimal 20 karakter)
+          PASSWORD=$(LC_ALL=C tr -dc A-Za-z0-9\$\&\@\#\%\^\*\+\-\/\<\>\?\;\:,\. < /dev/urandom | head -c 20)
+          USERNAME="rdpuser"
+          
+          # Tambahkan user baru
+          sudo useradd -m -s /bin/bash $USERNAME
+          # Set password untuk user
+          echo "$USERNAME:$PASSWORD" | sudo chpasswd
+          # Tambahkan user ke grup sudo dan ssl-cert (untuk xrdp)
+          sudo usermod -aG sudo $USERNAME
+          sudo usermod -aG ssl-cert $USERNAME
+
+          # Simpan kredensial untuk ditampilkan
+          echo "RDP_CREDS=User: $USERNAME | Password: $PASSWORD" >> $GITHUB_ENV
+
+      - name: Display Access Information and Maintain Connection
+        run: |
+          echo "================== RDP ACCESS VIA TAILSCALE =================="
+          echo "Connect to this IP using any RDP client (e.g., Remmina, Microsoft RDP):"
+          echo "Address: $TAILSCALE_IP"
+          echo "Username: rdpuser"
+          # Tampilkan password dari variabel lingkungan
+          PASSWORD_ONLY=$(echo "$RDP_CREDS" | awk -F ' | ' '{print $NF}' | sed 's/Password: //')
+          echo "Password: $PASSWORD_ONLY"
+          echo "=============================================================="
+          echo ""
+          echo "NOTE: This runner will remain active for up to ${{ jobs.secure-rdp.timeout-minutes }} minutes."
+          
+          # Jaga runner tetap aktif
+          while true; do
+            echo "[$(date)] RDP Session Active. Use 'Cancel Workflow' button to stop."
+            sleep 300
+          done
