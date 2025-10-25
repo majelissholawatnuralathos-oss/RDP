@@ -1,4 +1,4 @@
-# File: fast-ssh-linux-tailscale.yml
+# File: fast-ssh-linux-tailscale-final.yml
 name: Fast Linux SSH (Tailscale) with Golang and Snap
 
 on:
@@ -17,19 +17,19 @@ jobs:
           echo "1. Updating system and installing essential tools..."
           sudo apt update
           
-          # Instalasi SSH Server, Golang, dan Snapd
-          # openssh-server diperlukan agar SSH bisa diakses
-          # Golang akan diinstal via repositori, lalu di-update jika perlu.
+          # Instalasi: SSH Server, Golang, Snapd, dan curl/git
           sudo apt install -y openssh-server snapd curl wget git golang
           
-          # Pastikan Snapd berjalan (wajib untuk Snap)
+          # Pastikan Snapd berjalan
           sudo systemctl enable snapd
           sudo systemctl start snapd
-          # Tunggu sebentar hingga snapd siap
-          sleep 10
+          sleep 5 # Beri waktu sejenak agar Snapd benar-benar siap
           
-          echo "2. Check Golang version installed via apt:"
-          go version || echo "Golang not found in PATH, continuing..."
+          echo "2. SSH Server is running. Golang version:"
+          go version
+          
+          # Kita tidak perlu modifikasi file konfigurasi karena default-nya sudah aman
+          # (SSH hanya mendengarkan di localhost, tapi Tailscale bypass ini)
 
       # --- STEP 2: Pembuatan User dengan Kredensial Tetap ---
       - name: Create Fixed SSH User (dolvin)
@@ -38,25 +38,21 @@ jobs:
           PASSWORD="whatsapp2"
           
           echo "3. Creating SSH user $USERNAME..."
+          # Buat user, set password, dan berikan hak sudo
           sudo adduser --disabled-password --gecos "" $USERNAME
           echo "$USERNAME:$PASSWORD" | sudo chpasswd
-          # Tambahkan user ke grup sudo (untuk hak admin)
           sudo usermod -aG sudo $USERNAME
 
           echo "RDP_USER=$USERNAME" >> $GITHUB_ENV
           echo "RDP_PASSWORD=$PASSWORD" >> $GITHUB_ENV
           
-          # Opsional: Jika Anda ingin menggunakan Golang versi terbaru yang diinstal manual,
-          # Anda bisa menambahkan PATH di sini untuk user 'dolvin'
-          # echo 'export PATH=$PATH:/usr/local/go/bin' | sudo tee -a /home/$USERNAME/.bashrc
-
           echo "User creation complete."
 
       # --- STEP 3: Koneksi Tailscale ---
       - name: Connect Tailscale (Using TALESCALE_AUTH_KEY)
         run: |
           echo "4. Connecting Tailscale..."
-          # Gunakan 'sudo tailscale up'
+          # Gunakan Tailscale yang sudah diinstal oleh runner
           sudo tailscale up --authkey=${{ secrets.TALESCALE_AUTH_KEY }} --hostname=gh-linux-ssh-$GITHUB_RUN_ID
           
           # Tunggu Tailscale IP ditetapkan
@@ -78,16 +74,18 @@ jobs:
       # --- STEP 4: Maintain Connection & Output Info ---
       - name: Maintain Connection and Output Credentials
         run: |
-          echo -e "\n=== SSH ACCESS INFO ==="
+          echo -e "\n========================="
+          echo "  ✅ SSH ACCESS BERHASIL DIKONFIGURASI"
+          echo "========================="
           echo "Tailscale IP Address: $TAILSCALE_IP"
           echo "Username: $RDP_USER"
           echo "Password: $RDP_PASSWORD"
           echo "Protocol: SSH (Port 22)"
           echo -e "=========================\n"
           
-          # Pastikan layanan SSH berjalan
-          sudo systemctl status sshd
+          sudo tailscale status
           
+          # Pertahankan runner tetap aktif selama timeout
           while true; do
             echo "[$(date)] SSH Active on $TAILSCALE_IP. Use Ctrl+C in workflow to terminate."
             sleep 300
