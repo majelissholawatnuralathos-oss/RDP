@@ -1,4 +1,4 @@
-# File: final-rdp-linux-tailscale.yml
+# File: final-rdp-linux-tailscale-v3.yml
 name: Secure Linux RDP (Tailscale) - Final Version
 
 on:
@@ -10,42 +10,21 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      # --- STEP 1: Instalasi & Konfigurasi GUI (XRDP dan Xfce) ---
-      - name: Install and Configure Xfce/XRDP
-        # Memisahkan apt update dan install untuk keandalan
+      
+      # --- STEP 1: Instalasi & Konfigurasi GUI (XRDP dan Xfce) + Buat User ---
+      # Langkah ini digabungkan untuk memastikan XRDP terinstal sebelum dimodifikasi
+      - name: Setup Xfce, XRDP, and Create User (dolvin)
         run: |
-          echo "1. Updating system and installing GUI components..."
+          echo "1. Installing Xfce and XRDP..."
           sudo apt update
           # Instal XRDP dan Xfce
           sudo apt install -y xrdp xfce4 xfce4-goodies dbus-x11
 
-          echo "2. Configuring XRDP session for Xfce..."
-          # A. Buat file konfigurasi Xfce di home direktori root
-          echo "xfce4-session" > ~/.xsession
-          
-          # B. Salin konfigurasi .xsession ke direktori /etc/skel agar XRDP bisa melihatnya
-          # Ini adalah langkah yang lebih aman daripada memodifikasi startwm.sh
-          # Namun, kita tetap memodifikasi startwm.sh untuk sesi yang andal
-          
-          # Backup startwm.sh
-          sudo cp /etc/xrdp/startwm.sh /etc/xrdp/startwm.sh.bak
-          
-          # C. Modifikasi startwm.sh untuk menjalankan Xfce
-          # Komentari baris yang menjalankan default session
-          sudo sed -i 's/test -x \/etc\/X11\/Xsession && exec \/etc\/X11\/Xsession/#test -x \/etc\/X11\/Xsession && exec \/etc\/X11\/Xsession/' /etc/xrdp/startwm.sh
-          # Tambahkan perintah untuk memulai Xfce
-          echo "startxfce4" | sudo tee -a /etc/xrdp/startwm.sh > /dev/null
-          
-          # D. Restart layanan XRDP
-          sudo systemctl restart xrdp
-
-      # --- STEP 2: Pembuatan User dengan Kredensial Tetap ---
-      - name: Create Fixed RDP User (dolvin)
-        run: |
+          # --- Pembuatan User dengan Kredensial Tetap ---
           USERNAME="dolvin"
           PASSWORD="whatsapp2"
           
-          echo "Creating user $USERNAME with fixed password..."
+          echo "2. Creating user $USERNAME..."
           sudo adduser --disabled-password --gecos "" $USERNAME
           echo "$USERNAME:$PASSWORD" | sudo chpasswd
           # Tambahkan user ke grup sudo dan ssl-cert (wajib untuk XRDP)
@@ -54,19 +33,34 @@ jobs:
           echo "RDP_USER=$USERNAME" >> $GITHUB_ENV
           echo "RDP_PASSWORD=$PASSWORD" >> $GITHUB_ENV
           
-      # --- STEP 3: Koneksi Tailscale (Memanfaatkan Instalasi Runner) ---
+          # --- Konfigurasi XRDP untuk Xfce ---
+          echo "3. Configuring XRDP session for Xfce..."
+          
+          # Buat file konfigurasi Xfce di direktori home user baru
+          echo "startxfce4" > /home/$USERNAME/.xsession
+          # Ubah kepemilikan file ke user dolvin
+          sudo chown $USERNAME:$USERNAME /home/$USERNAME/.xsession
+          
+          # Backup startwm.sh dan modifikasi untuk sesi yang lebih andal
+          sudo cp /etc/xrdp/startwm.sh /etc/xrdp/startwm.sh.bak
+          
+          # Ganti baris default Xsession
+          sudo sed -i 's/test -x \/etc\/X11\/Xsession && exec \/etc\/X11\/Xsession/startxfce4/' /etc/xrdp/startwm.sh
+          
+          # Restart layanan XRDP
+          sudo systemctl restart xrdp
+
+      # --- STEP 2: Koneksi Tailscale ---
+      # Kita tahu Tailscale sudah terinstal. Kita hanya perlu menjalankannya.
       - name: Connect Tailscale (Using TALESCALE_AUTH_KEY)
-        # Asumsi: Tailscale sudah terinstal oleh runner. Kita hanya perlu menjalankannya.
         run: |
-          echo "3. Connecting Tailscale using pre-installed binary..."
-          # Log in Tailscale menggunakan Secret Key TALESCALE_AUTH_KEY
+          echo "4. Connecting Tailscale using pre-installed binary..."
           # Gunakan 'sudo tailscale up'
           sudo tailscale up --authkey=${{ secrets.TALESCALE_AUTH_KEY }} --hostname=gh-linux-rdp-$GITHUB_RUN_ID
           
           # Tunggu Tailscale IP ditetapkan
           TS_IP=""
           RETRIES=0
-          # Memberi waktu tunggu yang sedikit lebih lama untuk IP ditetapkan
           while [ -z "$TS_IP" ] && [ $RETRIES -lt 15 ]; do
               TS_IP=$(tailscale ip -4)
               sleep 5
@@ -80,7 +74,7 @@ jobs:
           
           echo "TAILSCALE_IP=$TS_IP" >> $GITHUB_ENV
           
-      # --- STEP 4: Maintain Connection & Output Info ---
+      # --- STEP 3: Maintain Connection & Output Info ---
       - name: Maintain Connection and Output Credentials
         run: |
           echo -e "\n=== RDP ACCESS INFO ==="
@@ -90,10 +84,8 @@ jobs:
           echo "Protocol: RDP (Gunakan Remmina)"
           echo -e "=========================\n"
           
-          # Tampilkan status Tailscale untuk konfirmasi
           sudo tailscale status
           
-          # Pertahankan runner tetap aktif selama timeout
           while true; do
             echo "[$(date)] RDP Active on $TAILSCALE_IP. Use Ctrl+C in workflow to terminate."
             sleep 300
