@@ -30,12 +30,13 @@ jobs:
 
       - name: Install base packages (apt)
         run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             build-essential git curl wget unzip ca-certificates gnupg lsb-release \
             net-tools iproute2 tcpdump nmap masscan netcat-openbsd socat jq \
             python3 python3-pip python3-venv python3-dev unzip zip \
             aircrack-ng iw rfkill macchanger \
-            hashcat john hashcat-utils \
+            hashcat john \
             sqlmap nikto \
             whois dnsutils
           
