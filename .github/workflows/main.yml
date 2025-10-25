@@ -1,88 +1,66 @@
-name: setup-pentest-environment
+name: install-go-snap-npm
 
 on:
   workflow_dispatch:
 
 jobs:
-  setup-tools:
+  install:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-
-    env:
-      # Jangan taruh password nyata di sini — set as repo secret (Settings → Secrets)
-      DOLVIN_PASS: ${{ secrets.DOLVIN_PASS }}
-      GO_VERSION: "1.21.11"   # ganti kalau mau versi lain
+    timeout-minutes: 30
 
     steps:
-      - name: Prepare runner
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install prerequisites
         run: |
           sudo apt-get update -y
-          sudo apt-get upgrade -y
-          # small swap so heavy builds won't OOM on runner
-          if [ ! -f /swapfile ]; then
-            sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
-            sudo chmod 600 /swapfile
-            sudo mkswap /swapfile
-            sudo swapon /swapfile
-          fi
-          sudo sysctl vm.swappiness=10
-          free -h
+          sudo apt-get install -y --no-install-recommends curl wget ca-certificates build-essential
 
-      
-
-      - name: Install Snap & snaps (optional GUI helpers)
+      - name: Install snapd
         run: |
           sudo apt-get install -y snapd
-          # note: some snaps may not be useful on CI runners, but included for convenience
-          # sudo snap install --classic nmap || true
+          # enable/start snapd (may be noop on runners but try anyway)
+          sudo systemctl enable --now snapd.socket || true
+          # ensure core snap present
+          sudo snap install core || true
+          echo "snap installed:"
+          snap version || true
 
-      - name: Install Go (manual) and setup env
-        id: go_install
+      - name: Install Node.js (latest/current) and update npm to latest
         run: |
-          set -e
-          GO_VER="${{ env.GO_VERSION }}"
+          # Install current Node.js (uses NodeSource current)
+          curl -fsSL https://deb.nodesource.com/setup_current.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+          # update npm to latest stable
+          sudo npm install -g npm@latest
+          echo "node $(node -v)"
+          echo "npm  $(npm -v)"
+
+      - name: Install latest Go (auto-detect latest stable)
+        run: |
+          set -euo pipefail
+          GO_LATEST=$(curl -fsSL https://go.dev/VERSION?m=text)        # e.g. go1.21.11
+          echo "Detected Go: $GO_LATEST"
           ARCH="linux-amd64"
-          TGZ="go${GO_VER}.${ARCH}.tar.gz"
-          curl -fsSL "https://golang.org/dl/${TGZ}" -o "/tmp/${TGZ}"
+          TGZ="${GO_LATEST}.${ARCH}.tar.gz"
+          URL="https://golang.org/dl/${TGZ}"
+          echo "Downloading $URL"
+          curl -fsSL "$URL" -o "/tmp/${TGZ}"
           sudo rm -rf /usr/local/go
           sudo tar -C /usr/local -xzf "/tmp/${TGZ}"
-          # use a temporary GOPATH for the runner
+          # setup GOPATH in a temp folder for runner
           export GOPATH="/tmp/go"
           mkdir -p "${GOPATH}/bin"
           echo "GOPATH=${GOPATH}" >> $GITHUB_ENV
           echo "PATH=/usr/local/go/bin:${GOPATH}/bin:${PATH}" >> $GITHUB_ENV
           /usr/local/go/bin/go version
 
-      
-
-      - name: Install some community binaries (deb / tar)
+      - name: Verify installations
         run: |
-          set -e
-          # gobuster (try apt first, fallback to tarball)
-          sudo apt-get install -y gobuster || ( wget -qO- https://github.com/OJ/gobuster/releases/latest/download/gobuster-linux-amd64.tar.gz | sudo tar -xz -C /usr/local/bin gobuster )
-          sudo -H python3 -m pip install wfuzz || true
-
-      - name: Create user 'dolvin' (optional)
-        if: env.DOLVIN_PASS != ''
-        run: |
-          sudo useradd -m -s /bin/bash dolvin || true
-          echo "dolvin:${DOLVIN_PASS}" | sudo chpasswd
-          sudo usermod -aG sudo dolvin || true
-          id dolvin
-
-      - name: Final healthcheck (versions + PATH)
-        run: |
-          echo "=== Versions ==="
-          nmap --version | head -n1 || true
-          masscan --version || true
-          python3 --version
-          go version || true
-          echo "=== sample /usr/local/bin ==="
-          ls -1 /usr/local/bin | sed -n '1,120p' || true
-          echo "=== go bins (/tmp/go/bin) ==="
-          ls -1 /tmp/go/bin || true
-
-      
-          name: runner-info
-          path: |
-            /tmp
+          echo "===== verification ====="
+          if command -v go >/dev/null 2>&1; then go version; else echo "go: not found"; fi
+          if command -v node >/dev/null 2>&1; then node -v; else echo "node: not found"; fi
+          if command -v npm >/dev/null 2>&1; then npm -v; else echo "npm: not found"; fi
+          snap version || true
+          echo "GOPATH is: $GOPATH (note: exported to GITHUB_ENV for subsequent steps)"
