@@ -82,9 +82,7 @@ jobs:
           echo "=== go bins (/tmp/go/bin) ==="
           ls -1 /tmp/go/bin || true
 
-      - name: Save artifact (optional logs)
-        uses: actions/upload-artifact@v4
-        with:
+      
           name: runner-info
           path: |
             /tmp
