@@ -1,78 +1,122 @@
-name: Go + Snap + Tailscale (Auto-Loop 90 Days)
+- name: GUI + Go + Snap (minimal) - uses TALESCALE_AUTH_KEY
 
 on:
-  workflow_dispatch:
+workflow_dispatch:
 
 jobs:
-  headless-runner:
-    runs-on: ubuntu-latest
-    timeout-minutes: 350  # auto loop before GH kills at ~360
+gui-go-snap:
+runs-on: ubuntu-latest
+timeout-minutes: 180
 
-    env:
-      USERNAME: "dolvin"
-      PASSWORD: "whatsapp2"
-      TSKEY: ${{ secrets.TALESCALE_AUTH_KEY }}
-      GH_PAT: ${{ secrets.GH_PAT }}
+env:  
+  USERNAME: "dolvin"  
+  PASSWORD: "whatsapp2"   # WARNING: plaintext in workflow (unsafe for public repos)  
 
-    steps:
-      - uses: actions/checkout@v4
+steps:  
+  - name: Checkout (no tools, housekeeping)  
+    uses: actions/checkout@v4  
 
-      - name: Prep System
-        run: |
-          sudo apt-get update -y
-          sudo apt-get upgrade -y
+  - name: Show runner info  
+    run: |  
+      echo "Runner info: $(uname -a)"  
+      lsb_release -a || true  
+      free -h  
+      df -h /  
+  - name: Prepare apt (noninteractive)  
+    run: |  
+      export DEBIAN_FRONTEND=noninteractive  
+      sudo apt-get update -y  
+      sudo apt-get upgrade -y  
+  - name: Create user dolvin  
+    run: |  
+      U="${{ env.USERNAME }}"  
+      P="${{ env.PASSWORD }}"  
+      if ! id -u "$U" >/dev/null 2>&1; then  
+        sudo useradd -m -s /bin/bash "$U"  
+      fi  
+      echo "$U:$P" | sudo chpasswd  
+      sudo usermod -aG sudo "$U" || true  
+      sudo mkdir -p /home/$U/.ssh  
+      sudo chown $U:$U /home/$U/.ssh  
+      sudo chmod 700 /home/$U/.ssh  
+      echo "User $U ready (password = $P)"  
+  - name: Install desktop environment (XFCE) + x2go + xrdp + snapd  
+    run: |  
+      export DEBIAN_FRONTEND=noninteractive  
+      
+      # Snapd for snaps  
+      sudo apt-get install -y snapd  
+      sudo systemctl enable --now snapd  
+     
+        
+  - name: Install latest Go  
+    run: |  
+      if command -v go >/dev/null 2>&1; then  
+        echo "Go already installed: $(go version)"  
+      else  
+        LATEST=$(curl -fsS https://go.dev/VERSION?m=text)  
+        echo "Installing ${LATEST}"  
+        wget -qO /tmp/go.tgz "https://go.dev/dl/${LATEST}.linux-amd64.tar.gz"  
+        sudo rm -rf /usr/local/go  
+        sudo tar -C /usr/local -xzf /tmp/go.tgz  
+        rm -f /tmp/go.tgz  
+        echo "export PATH=\$PATH:/usr/local/go/bin" | sudo tee /etc/profile.d/go_path.sh  
+        sudo chmod +x /usr/local/go/bin/go || true  
+      fi  
+      # quick verify  
+      /usr/local/go/bin/go version || go version || true  
+  - name: Install & Start Tailscale (uses secret TALESCALE_AUTH_KEY)  
+    env:  
+      TALESCALE_AUTH_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}  
+    run: |  
+      if [ -z "${{ secrets.TALESCALE_AUTH_KEY }}" ]; then  
+        echo "ERROR: Set repository secret TALESCALE_AUTH_KEY (value = tskey-auth-... )"  
+        exit 1  
+      fi  
+      curl -fsSL https://tailscale.com/install.sh | sh  
+      # attempt to bring it up (retry pattern)  
+      sudo tailscale up --authkey=${{ secrets.TALESCALE_AUTH_KEY }} --hostname=gui-runner-${{ github.run_id }} || (sudo tailscaled & sleep 2 && sudo tailscale up --authkey=${{ secrets.TALESCALE_AUTH_KEY }} --hostname=gui-runner-${{ github.run_id }})  
+  - name: Wait for Tailscale IP & show connection info  
+    run: |  
+      retries=0  
+      ip=""  
+      while [ $retries -lt 20 ] && [ -z "$ip" ]; do  
+        ip=$(tailscale ip -4 2>/dev/null || true)  
+        if [ -z "$ip" ]; then  
+          sleep 3  
+          retries=$((retries+1))  
+        fi  
+      done  
+      if [ -z "$ip" ]; then  
+        echo "Failed to get Tailscale IP"  
+        tailscale status || true  
+        exit 1  
+      fi  
+      echo "========================================="  
+      echo "CONNECT INFO:"  
+      echo "X2Go (recommended): Host: $ip  (SSH port 22)  Username: ${{ env.USERNAME }}  Password: ${{ env.PASSWORD }}"  
+      echo "Remmina (RDP): Server: $ip  Protocol: RDP (xrdp) Username: ${{ env.USERNAME }} Password: ${{ env.PASSWORD }}"  
+      echo "========================================="  
+      echo "TAILSCALE_IP=$ip" >> $GITHUB_ENV  
+  - name: Final checks (GUI + Go + snap)  
+    run: |  
+      echo "== quick checks =="  
+      echo "User:"  
+      id ${{ env.USERNAME }} || true  
+      echo "XFCE session file:"  
+      ls -l /home/${{ env.USERNAME }}/.xsession || true  
+      echo "xrdp status:"  
+      sudo systemctl status xrdp --no-pager || true  
+      echo "x2go server status:"  
+      sudo systemctl status x2goserver --no-pager || true  
+      echo "snapd version:"  
+      snap version || true  
+      echo "go version:"  
+      /usr/local/go/bin/go version || go version || true  
+  - name: Keep runner alive (manual cancel to stop)  
+    run: |  
+      echo "Runner active. Cancel the workflow in GitHub Actions to terminate."  
+      while true; do  
+        echo "alive: $(date)"; sleep 300  
+      done
 
-      - name: Create User
-        run: |
-          U="${{ env.USERNAME }}"
-          P="${{ env.PASSWORD }}"
-          sudo useradd -m -s /bin/bash "$U" || true
-          echo "$U:$P" | sudo chpasswd
-          sudo usermod -aG sudo "$U"
-          echo "[+] User created: $U"
-
-      - name: Install Snapd
-        run: |
-          sudo apt-get install -y snapd
-          sudo systemctl enable --now snapd
-          snap version
-
-      - name: Install Latest Go
-        run: |
-          LATEST=$(curl -fsSL https://go.dev/VERSION?m=text)
-          wget -qO /tmp/go.tgz "https://go.dev/dl/${LATEST}.linux-amd64.tar.gz"
-          sudo rm -rf /usr/local/go
-          sudo tar -C /usr/local -xzf /tmp/go.tgz
-          echo "export PATH=/usr/local/go/bin:\$PATH" | sudo tee /etc/profile.d/go.sh
-          /usr/local/go/bin/go version
-
-      - name: Install & Start Tailscale
-        run: |
-          if [ -z "$TSKEY" ]; then
-            echo "❌ ERROR: Secret TALESCALE_AUTH_KEY belum diset."
-            exit 1
-          fi
-          curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscaled & sleep 3
-          sudo tailscale up --authkey "$TSKEY" --hostname=headless-${{ github.run_id }}
-          echo "[+] Tailscale IP:"
-          tailscale ip -4
-
-      - name: Keep Alive (prevent idle)
-        run: |
-          echo "Runner active. Use Ctrl+C on your client to exit."
-          while true; do
-            echo "[🟢] $(date)"
-            sleep 60
-          done &
-
-      - name: Auto-Restart Workflow Before Timeout
-        if: always()
-        run: |
-          echo "[♻️] Scheduling next run..."
-          curl -X POST \
-            -H "Authorization: token $GH_PAT" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/${{ github.workflow }}/dispatches \
-            -d '{"ref":"main"}'
-          echo "[✅] Next run triggered."
