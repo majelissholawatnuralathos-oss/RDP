@@ -36,16 +36,7 @@ jobs:
           sudo systemctl enable --now snapd
           snap version
 
-      - name: Install Latest Go
-        run: |
-          LATEST=$(curl -fsSL https://go.dev/VERSION?m=text)
-          wget -qO /tmp/go.tgz "https://go.dev/dl/${LATEST}.linux-amd64.tar.gz"
-          sudo rm -rf /usr/local/go
-          sudo tar -C /usr/local -xzf /tmp/go.tgz
-          echo "export PATH=/usr/local/go/bin:\$PATH" | sudo tee /etc/profile.d/go.sh
-          source /etc/profile.d/go.sh
-          go version || /usr/local/go/bin/go version
-
+      
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
