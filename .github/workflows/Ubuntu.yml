@@ -1,5 +1,4 @@
 - name: GUI + Go + Snap (minimal) - uses TALESCALE_AUTH_KEY
-
 on:
 workflow_dispatch:
 
