@@ -1,10 +1,11 @@
 name: GUI + Go + Snap
+
 on:
-workflow_dispatch:
+ workflow_dispatch:
 
 jobs:
-gui-go-snap:
-runs-on: ubuntu-latest
+ gui-go-snap:
+  runs-on: ubuntu-latest
 timeout-minutes: 180
 
 env:  
