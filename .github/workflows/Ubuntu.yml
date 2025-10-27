@@ -1,53 +1,115 @@
-name: Headless Go + Snap + Tailscale
-
+name: Auto-reborn ZeroTier (cache + self-restart)
+# triggers: manual (dispatch) and scheduled (runs every ~5h50)
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '*/350 * * * *' # jadwal contoh (setiap ~5 jam 50 menit) - sesuaikan kalau mau
+
+# jaga permission supaya workflow bisa re-dispatch
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: auto-reborn-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  setup:
+  main:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    # timeout-minutes gak boleh > 360 (6 jam) untuk hosted runners,
+    # tapi kita aim supaya job selesai & re-dispatch sebelum timeout
+    timeout-minutes: 330
 
     env:
-      USERNAME: "dolvin"
-      PASSWORD: "whatsapp2"
-      TALESCALE_AUTH_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
+      ZT_NETWORK_ID: ${{ secrets.ZT_NETWORK_ID }}   # <-- isi di repo secrets kalau mau auto-join
+      # NOTE: jangan isi nilai di file ini, isi di Secrets repo
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Update System
-        run: |
-          sudo apt-get update -y
-          sudo apt-get upgrade -y
+      - name: Restore tools cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/tools
+            ~/.cache/go-build
+            ~/.cache/nuclei
+            ~/.local/bin
+            ~/go/bin
+          key: ${{ runner.os }}-tools-${{ hashFiles('**/*.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
 
-      - name: Create User
+      - name: Install ZeroTier (if configured)
         run: |
-          U="${{ env.USERNAME }}"
-          P="${{ env.PASSWORD }}"
-          sudo useradd -m -s /bin/bash "$U" || true
-          echo "$U:$P" | sudo chpasswd
-          sudo usermod -aG sudo "$U" || true
+          # install script (works on ubuntu-latest)
+          curl -s https://install.zerotier.com | sudo bash || true
+          # jika ZT_NETWORK_ID ada, join (jika kosong, skip)
+          if [ -n "${ZT_NETWORK_ID}" ]; then
+            sudo zerotier-cli join "${ZT_NETWORK_ID}" || true
+            # tunggu IP assignment sedikit
+            for i in {1..12}; do
+              ip -4 addr show scope global | grep zt && break || sleep 2
+            done
+            ip -4 addr show scope global | grep zt || echo "ZeroTier IP not assigned yet (approve in my.zerotier.com if needed)."
+          else
+            echo "ZT_NETWORK_ID not provided — skipping ZeroTier join."
+          fi
 
-      - name: Install Snap
-        run: |
-          sudo apt-get install -y snapd
-          sudo systemctl enable --now snapd
-          snap version
+      - name: Show network interfaces (debug)
+        run: ip a || true
 
-      
-      - name: Install Tailscale
+      - name: Ensure ~/tools exists
         run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
+          mkdir -p ~/tools
+          mkdir -p ~/go/bin
+          # NOTE: tempat kosong buat lo taruh binary / script biar dicache
 
-      - name: Start Tailscale
+      - name: Install or restore tools (placeholder)
         run: |
-          sudo tailscaled & sleep 3
-          sudo tailscale up --authkey="${{ env.TALESCALE_AUTH_KEY }}" --hostname=runner-${{ github.run_id }}
-          tailscale ip -4
+          # === KOSONGAN ===
+          # Taruh perintah install tool kamu di sini.
+          # Contoh (jika mau): go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          # Tapi sesuai permintaan, ini dibiarkan KOSONG / TEMPLATE.
+          echo "Masukkan perintah install tool kamu di step ini (kosongan sekarang)."
 
-      - name: Keep Alive (90 days loop)
+      - name: Run your jobs / commands (placeholder)
         run: |
-          echo "Runner is alive. Press Cancel workflow to stop."
-          while true; do sleep 300; done
+          # === KOSONGAN ===
+          # Jalankan perintah/pipeline lo di sini.
+          # Contoh:
+          # export PATH=$PATH:~/go/bin:~/.local/bin
+          # nuclei -list targets.txt -t templates/ -o results.txt
+          echo "Tempat jalankan job / scan / script kamu. Kosong sekarang."
+
+      - name: Upload artifacts (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-results
+          path: |
+            ./results || true
+            ./output || true
+
+      - name: Trigger next run (self-dispatch) BEFORE exit
+        if: always()
+        env:
+          REPO: ${{ github.repository }}
+          WORKFLOW_FILE: auto-reborn-zerotier.yml   # <-- nama file workflow ini (biarkan sama)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF: ${{ github.ref_name }}              # branch/ref to dispatch (ke branch yang sama)
+        run: |
+          # Self-dispatch this same workflow to "re-birth" it.
+          # This calls the Actions API to create a dispatch for the same workflow file.
+          echo "Triggering next run for ${WORKFLOW_FILE} on ref ${REF} ..."
+          curl -s -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches" \
+            -d "{\"ref\":\"${REF}\"}" \
+            || echo "Failed to dispatch — check permissions & workflow filename."
+
+      - name: Done (exit)
+        run: echo "Run complete. Workflow re-dispatch attempted."
