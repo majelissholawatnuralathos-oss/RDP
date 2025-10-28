@@ -1,62 +1,106 @@
-name: CI/CD Dengan Akses Tailscale
+name: Secure Scan via Tailscale (Subfinder, Nuclei, httpx, Dalfox)
 
+# Memungkinkan pemicuan manual dari tab Actions di GitHub
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-  # Anda juga bisa memicu ini secara manual dari GitHub UI
   workflow_dispatch:
+    inputs:
+      target_domain:
+        description: 'Domain target untuk dipindai (Contoh: internal.example.com)'
+        required: true
+        default: 'example.com'
+      tailscale_tag:
+        description: 'Tag ACL Tailscale untuk runner (Sesuai dengan ACL Anda)'
+        required: true
+        default: 'tag:ci'
 
 jobs:
-  ci-with-tailscale:
+  security_scan_job:
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Checkout Kode
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       # =========================================================
-      # 1. KONEKSI KE JARINGAN AMAN (TAILSCALE - OPSI B)
+      # 1. KONEKSI AMAN KE TAILSCALE
       # =========================================================
       - name: Hubungkan ke Jaringan Tailscale (Menggunakan Auth Key)
         uses: tailscale/github-action@v2
         with:
-          # Menggunakan Secret Key dari GitHub Secrets (Opsi B)
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }} 
-          # Disarankan untuk menggunakan tag ACL untuk kontrol akses
-          tags: tag:ci
-          
+          tags: ${{ github.event.inputs.tailscale_tag }}
+
       - name: Tampilkan Status Tailscale (Verifikasi)
         run: tailscale status
 
       # =========================================================
-      # 2. FASE PENGEMBANGAN/DEPLOYMENT
+      # 2. INSTALASI GO & TOOLS KEAMANAN
       # =========================================================
-      
-      - name: Jalankan Perintah yang Membutuhkan Akses ke Jaringan Pribadi
-        # Contoh: SSH ke server pribadi Anda (node Tailscale lain)
-        # Atau melakukan curl ke API internal di jaringan Tailscale
+      - name: Instalasi Go dan Tools
         run: |
-          echo "Node GitHub Actions kini terhubung sebagai node sementara."
+          # Instalasi Go
+          sudo apt-get update && sudo apt-get install -y golang-go
+
+          # Atur PATH agar binary Go dapat diakses
+          export PATH=$PATH:$(go env GOPATH)/bin
           
-          # Ganti 'nama-server-anda' dengan hostname node Tailscale yang ingin diakses
-          # Contoh: Ping server database pribadi
-          ping -c 3 nama-server-anda
-          
-          # Contoh: Deploy ke server melalui SSH/scp
-          # ssh user@nama-server-anda "sudo systemctl restart aplikasi-anda"
-          
-          # Catatan: Jika Anda menggunakan ZeroTier atau NetBird, Anda akan
-          # mengganti langkah 'tailscale/github-action' dengan tindakan
-          # yang sesuai untuk otentikasi dan koneksi ZeroTier/NetBird.
-          
-      - name: Uji Coba Lanjutan (Opsional)
-        # Di sini Anda bisa menempatkan langkah build atau unit testing Anda
-        run: echo "Langkah CI/CD selesai."
+          echo "Menginstal Subfinder, httpx, Nuclei, Dalfox..."
+          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install -v github.com/hahwul/dalfox@latest
+
+        env:
+          PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
 
       # =========================================================
-      # Node akan otomatis terputus dan dihapus setelah job selesai
+      # 3. JALANKAN WORKFLOW SCANNING
       # =========================================================
+      
+      - name: 🔍 Jalankan Subfinder (Recon Subdomain)
+        # Menemukan subdomain dari target domain input
+        run: |
+          subfinder -d ${{ github.event.inputs.target_domain }} -silent -o subdomains.txt
+          echo "Ditemukan $(cat subdomains.txt | wc -l) subdomain."
+        env:
+          PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
+
+      - name: 🌐 Jalankan httpx (Filter URL Aktif)
+        # Memfilter URL yang aktif, mengambil kode status, judul, dan mendeteksi teknologi
+        run: |
+          httpx -l subdomains.txt -o live_urls.txt -silent -title -tech-detect -status-code
+          echo "Ditemukan $(cat live_urls.txt | wc -l) URL aktif."
+        env:
+          PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
+
+      - name: 💣 Jalankan Nuclei (Vulnerability Scanning)
+        # Memindai kerentanan level High dan Critical pada URL yang ditemukan
+        run: |
+          nuclei -l live_urls.txt -t cves/,vulnerabilities/ -severity high,critical -o nuclei_results.txt -stats || true
+          echo "Hasil Nuclei tersimpan di nuclei_results.txt"
+        env:
+          PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
+
+      - name: 🦊 Jalankan Dalfox (XSS Scanning)
+        # Mengambil URL dengan parameter dari live_urls.txt untuk dipindai XSS
+        run: |
+          grep -i "?" live_urls.txt | dalfox pipe -o dalfox_results.txt || true
+          echo "Hasil Dalfox (XSS) tersimpan di dalfox_results.txt"
+        env:
+          PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
+      
+      # =========================================================
+      # 4. UPLOAD ARTIFACTS
+      # =========================================================
+      
+      - name: 💾 Upload Hasil Scan sebagai Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-results-${{ github.event.inputs.target_domain }}-${{ github.sha }}
+          path: |
+            subdomains.txt
+            live_urls.txt
+            nuclei_results.txt
+            dalfox_results.txt
+          if-no-files-found: ignore
+          
