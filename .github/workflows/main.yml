@@ -35,19 +35,12 @@ jobs:
 
       - name: Install Snap
         run: |
-          sudo apt-get install -y snapd
-          sudo systemctl enable --now snapd
-          snap version
           go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
-          cp ~/go/bin/nuclei /usr/bin
           go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-          cp ~/go/bin/subfinder /usr/bin
           go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
-          cp ~/go/bin/httpx /usr/bin
           go install github.com/hahwul/dalfox/v2@latest
-          cp ~/go/bin/dalfox /usr/bin
           go install github.com/ffuf/ffuf/v2@latest
-          cp ~/go/bin/ffuf /usr/bin
+          
 
       
 
