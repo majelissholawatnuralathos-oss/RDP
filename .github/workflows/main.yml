@@ -43,6 +43,9 @@ jobs:
           go install github.com/ffuf/ffuf/v2@latest
           go install github.com/lc/gau/v2/cmd/gau@latest
           sudo snap install seclists
+          git clone https://github.com/dwisiswant0/gf-patterns ~/.gf
+          export GF_PATH=~/.gf
+          source ~/.bashrc
           
 
       
