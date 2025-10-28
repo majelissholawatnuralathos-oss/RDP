@@ -1,4 +1,4 @@
-name: Headless Go + Snap + Tailscale
+name: tools
 
 on:
   workflow_dispatch:
