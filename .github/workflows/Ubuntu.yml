@@ -1,96 +1,57 @@
-name: Secure Scan with SSH Access via Tailscale
+name: Headless Go + Snap + Tailscale
 
 on:
   workflow_dispatch:
-    inputs:
-      target_host:
-        description: 'Hostname Tailscale (atau IP 100.x.x.x) dari laptop tujuan SSH/Scan'
-        required: true
-        default: 'nama-laptop-anda-di-tailscale'
-      target_user:
-        description: 'Username SSH di laptop tujuan (Contoh: dolvin)'
-        required: true
-        default: 'dolvin'
-      tailscale_tag:
-        description: 'Tag ACL Tailscale untuk runner (Sesuai dengan ACL Anda)'
-        required: true
-        default: 'tag:ci'
 
 jobs:
-  ssh_and_security_job:
+  setup:
     runs-on: ubuntu-latest
-    
-    # Memastikan kunci SSH privat digunakan sekali
-    defaults:
-      run:
-        shell: bash
+    timeout-minutes: 360
+
+    env:
+      USERNAME: "dolvin"
+      PASSWORD: "whatsapp2"
+      TALESCALE_AUTH_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
 
     steps:
-      - name: Checkout Kode
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # =========================================================
-      # 1. KONEKSI AMAN KE TAILSCALE
-      # =========================================================
-      - name: Hubungkan ke Jaringan Tailscale
-        uses: tailscale/github-action@v2
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }} 
-          tags: ${{ github.event.inputs.tailscale_tag }}
-
-      - name: Tampilkan Status Tailscale (Verifikasi)
-        run: tailscale status
-
-      # =========================================================
-      # 2. KONFIGURASI SSH (Menggunakan Private Key)
-      # =========================================================
-      - name: Siapkan Kunci SSH Privat
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          # SSH_PRIVATE_KEY adalah secret yang Anda buat, berisi kunci privat
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-          
-      - name: Konfigurasi SSH
+      - name: Update System
         run: |
-          # Perlu menambahkan Tailscale Host ke known_hosts
-          ssh-keyscan -H ${{ github.event.inputs.target_host }} >> ~/.ssh/known_hosts
+          sudo apt-get update -y
+          sudo apt-get upgrade -y
+          sudo apt install go
+          sudo apt install npm
+          npm install -g @google/gemini-cli
 
-      - name: 📞 Uji Koneksi SSH ke Laptop Tujuan
+      - name: Create User
         run: |
-          # Mencoba koneksi SSH sederhana
-          ssh -o StrictHostKeyChecking=no ${{ github.event.inputs.target_user }}@${{ github.event.inputs.target_host }} "hostname && echo 'Koneksi SSH berhasil!'"
-          
-          # Sekarang Anda bisa menjalankan perintah SSH lainnya, misalnya:
-          # ssh ${{ github.event.inputs.target_user }}@${{ github.event.inputs.target_host }} "ls -la /home/${{ github.event.inputs.target_user }}"
-          
-      # =========================================================
-      # 3. INSTALASI TOOLS KEAMANAN (Subfinder, Nuclei, httpx, Dalfox)
-      # =========================================================
-      - name: Instalasi Go dan Tools
-        run: |
-          sudo apt-get update && sudo apt-get install -y golang-go
-          export PATH=$PATH:$(go env GOPATH)/bin
-          
-          echo "Menginstal Subfinder, httpx, Nuclei, Dalfox..."
-          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
-          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
-          go install -v github.com/hahwul/dalfox@latest
+          U="${{ env.USERNAME }}"
+          P="${{ env.PASSWORD }}"
+          sudo useradd -m -s /bin/bash "$U" || true
+          echo "$U:$P" | sudo chpasswd
+          sudo usermod -aG sudo "$U" || true
 
-        env:
-          PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
-
-      # =========================================================
-      # 4. JALANKAN WORKFLOW SCANNING (Menggunakan Host Target sebagai Target Scan)
-      # =========================================================
-      - name: 🌐 Jalankan httpx (Filter URL Aktif pada host target)
-        # Mencoba akses HTTP/HTTPS langsung ke host Tailscale (misalnya untuk API internal)
+      - name: Install Snap
         run: |
-          echo "${{ github.event.inputs.target_host }}" | httpx -o live_target.txt -silent -title -tech-detect -status-code
-          echo "Memindai host Tailscale ${{ github.event.inputs.target_host }}"
-        env:
-          PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
-          
-      # (Langkah Subfinder, Nuclei, dan Dalfox lain dapat ditambahkan di sini
-      # jika Anda ingin memindai host Tailscale tersebut)
+          sudo apt-get install -y snapd
+          sudo systemctl enable --now snapd
+          snap version
+
       
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Start Tailscale
+        run: |
+          sudo tailscaled & sleep 3
+          sudo tailscale up --authkey="${{ env.TALESCALE_AUTH_KEY }}" --hostname=runner-${{ github.run_id }}
+          tailscale ip -4
+
+      - name: Keep Alive (90 days loop)
+        run: |
+          echo "Runner is alive. Press Cancel workflow to stop."
+          while true; do sleep 300; done
