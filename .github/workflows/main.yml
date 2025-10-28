@@ -19,6 +19,7 @@ jobs:
 
       - name: Update System
         run: |
+          sudo su
           sudo apt-get update -y
           sudo apt-get upgrade -y
           go version
