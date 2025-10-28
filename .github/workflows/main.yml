@@ -1,0 +1,67 @@
+name: Headless Go + Snap + Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    env:
+      USERNAME: "dolvin"
+      PASSWORD: "whatsapp2"
+      TALESCALE_AUTH_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update System
+        run: |
+          sudo apt-get update -y
+          sudo apt-get upgrade -y
+          go version
+          sudo apt install npm
+          npm install -g @google/gemini-cli
+
+      - name: Create User
+        run: |
+          U="${{ env.USERNAME }}"
+          P="${{ env.PASSWORD }}"
+          sudo useradd -m -s /bin/bash "$U" || true
+          echo "$U:$P" | sudo chpasswd
+          sudo usermod -aG sudo "$U" || true
+
+      - name: Install Snap
+        run: |
+          sudo apt-get install -y snapd
+          sudo systemctl enable --now snapd
+          snap version
+          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          cp ~/go/bin/nuclei /usr/bin
+          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          cp ~/go/bin/subfinder /usr/bin
+          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+          cp ~/go/bin/httpx /usr/bin
+          go install github.com/hahwul/dalfox/v2@latest
+          cp ~/go/bin/dalfox /usr/bin
+          go install github.com/ffuf/ffuf/v2@latest
+          cp ~/go/bin/ffuf /usr/bin
+
+      
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Start Tailscale
+        run: |
+          sudo tailscaled & sleep 3
+          sudo tailscale up --authkey="${{ env.TALESCALE_AUTH_KEY }}" --hostname=runner-${{ github.run_id }}
+          tailscale ip -4
+
+      - name: Keep Alive (90 days loop)
+        run: |
+          echo "Runner is alive. Press Cancel workflow to stop."
+          while true; do sleep 300; done
