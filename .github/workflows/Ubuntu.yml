@@ -1,30 +1,38 @@
-name: Secure Scan via Tailscale (Subfinder, Nuclei, httpx, Dalfox)
+name: Secure Scan with SSH Access via Tailscale
 
-# Memungkinkan pemicuan manual dari tab Actions di GitHub
 on:
   workflow_dispatch:
     inputs:
-      target_domain:
-        description: 'Domain target untuk dipindai (Contoh: internal.example.com)'
+      target_host:
+        description: 'Hostname Tailscale (atau IP 100.x.x.x) dari laptop tujuan SSH/Scan'
         required: true
-        default: 'example.com'
+        default: 'nama-laptop-anda-di-tailscale'
+      target_user:
+        description: 'Username SSH di laptop tujuan (Contoh: dolvin)'
+        required: true
+        default: 'dolvin'
       tailscale_tag:
         description: 'Tag ACL Tailscale untuk runner (Sesuai dengan ACL Anda)'
         required: true
         default: 'tag:ci'
 
 jobs:
-  security_scan_job:
+  ssh_and_security_job:
     runs-on: ubuntu-latest
+    
+    # Memastikan kunci SSH privat digunakan sekali
+    defaults:
+      run:
+        shell: bash
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Kode
         uses: actions/checkout@v4
 
       # =========================================================
       # 1. KONEKSI AMAN KE TAILSCALE
       # =========================================================
-      - name: Hubungkan ke Jaringan Tailscale (Menggunakan Auth Key)
+      - name: Hubungkan ke Jaringan Tailscale
         uses: tailscale/github-action@v2
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }} 
@@ -34,14 +42,33 @@ jobs:
         run: tailscale status
 
       # =========================================================
-      # 2. INSTALASI GO & TOOLS KEAMANAN
+      # 2. KONFIGURASI SSH (Menggunakan Private Key)
+      # =========================================================
+      - name: Siapkan Kunci SSH Privat
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          # SSH_PRIVATE_KEY adalah secret yang Anda buat, berisi kunci privat
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          
+      - name: Konfigurasi SSH
+        run: |
+          # Perlu menambahkan Tailscale Host ke known_hosts
+          ssh-keyscan -H ${{ github.event.inputs.target_host }} >> ~/.ssh/known_hosts
+
+      - name: 📞 Uji Koneksi SSH ke Laptop Tujuan
+        run: |
+          # Mencoba koneksi SSH sederhana
+          ssh -o StrictHostKeyChecking=no ${{ github.event.inputs.target_user }}@${{ github.event.inputs.target_host }} "hostname && echo 'Koneksi SSH berhasil!'"
+          
+          # Sekarang Anda bisa menjalankan perintah SSH lainnya, misalnya:
+          # ssh ${{ github.event.inputs.target_user }}@${{ github.event.inputs.target_host }} "ls -la /home/${{ github.event.inputs.target_user }}"
+          
+      # =========================================================
+      # 3. INSTALASI TOOLS KEAMANAN (Subfinder, Nuclei, httpx, Dalfox)
       # =========================================================
       - name: Instalasi Go dan Tools
         run: |
-          # Instalasi Go
           sudo apt-get update && sudo apt-get install -y golang-go
-
-          # Atur PATH agar binary Go dapat diakses
           export PATH=$PATH:$(go env GOPATH)/bin
           
           echo "Menginstal Subfinder, httpx, Nuclei, Dalfox..."
@@ -54,53 +81,16 @@ jobs:
           PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
 
       # =========================================================
-      # 3. JALANKAN WORKFLOW SCANNING
+      # 4. JALANKAN WORKFLOW SCANNING (Menggunakan Host Target sebagai Target Scan)
       # =========================================================
-      
-      - name: 🔍 Jalankan Subfinder (Recon Subdomain)
-        # Menemukan subdomain dari target domain input
+      - name: 🌐 Jalankan httpx (Filter URL Aktif pada host target)
+        # Mencoba akses HTTP/HTTPS langsung ke host Tailscale (misalnya untuk API internal)
         run: |
-          subfinder -d ${{ github.event.inputs.target_domain }} -silent -o subdomains.txt
-          echo "Ditemukan $(cat subdomains.txt | wc -l) subdomain."
+          echo "${{ github.event.inputs.target_host }}" | httpx -o live_target.txt -silent -title -tech-detect -status-code
+          echo "Memindai host Tailscale ${{ github.event.inputs.target_host }}"
         env:
           PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
-
-      - name: 🌐 Jalankan httpx (Filter URL Aktif)
-        # Memfilter URL yang aktif, mengambil kode status, judul, dan mendeteksi teknologi
-        run: |
-          httpx -l subdomains.txt -o live_urls.txt -silent -title -tech-detect -status-code
-          echo "Ditemukan $(cat live_urls.txt | wc -l) URL aktif."
-        env:
-          PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
-
-      - name: 💣 Jalankan Nuclei (Vulnerability Scanning)
-        # Memindai kerentanan level High dan Critical pada URL yang ditemukan
-        run: |
-          nuclei -l live_urls.txt -t cves/,vulnerabilities/ -severity high,critical -o nuclei_results.txt -stats || true
-          echo "Hasil Nuclei tersimpan di nuclei_results.txt"
-        env:
-          PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
-
-      - name: 🦊 Jalankan Dalfox (XSS Scanning)
-        # Mengambil URL dengan parameter dari live_urls.txt untuk dipindai XSS
-        run: |
-          grep -i "?" live_urls.txt | dalfox pipe -o dalfox_results.txt || true
-          echo "Hasil Dalfox (XSS) tersimpan di dalfox_results.txt"
-        env:
-          PATH: /home/runner/go/bin:/usr/local/go/bin:$PATH
-      
-      # =========================================================
-      # 4. UPLOAD ARTIFACTS
-      # =========================================================
-      
-      - name: 💾 Upload Hasil Scan sebagai Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: scan-results-${{ github.event.inputs.target_domain }}-${{ github.sha }}
-          path: |
-            subdomains.txt
-            live_urls.txt
-            nuclei_results.txt
-            dalfox_results.txt
-          if-no-files-found: ignore
           
+      # (Langkah Subfinder, Nuclei, dan Dalfox lain dapat ditambahkan di sini
+      # jika Anda ingin memindai host Tailscale tersebut)
+      
