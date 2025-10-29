@@ -21,9 +21,17 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get upgrade -y
-          go version
+          
           sudo apt install npm
-          npm install -g @google/gemini-cli
+          sudo apt install xfce4 -y
+          sudo apt install xrdp -y
+          sudo systemctl enable --now xrdp
+          sudo apt install tightvncserver -y
+          tightvncserver
+          sudo apt install ufw -y
+          sudo ufw enable
+          sudo ufw allow in on tailscale0 to any port 3389 proto tcp
+          sudo ufw status
 
       - name: Create User
         run: |
@@ -35,9 +43,7 @@ jobs:
 
       - name: Install Snap
         run: |
-          sudo apt-get install -y snapd
-          sudo systemctl enable --now snapd
-          snap version
+          
 
       
 
