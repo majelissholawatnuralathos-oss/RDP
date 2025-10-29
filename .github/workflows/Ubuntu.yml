@@ -20,18 +20,9 @@ jobs:
       - name: Update System
         run: |
           sudo apt-get update -y
-          sudo apt-get upgrade -y
           
-          sudo apt install npm
-          sudo apt install xfce4 -y
-          sudo apt install xrdp -y
-          sudo systemctl enable --now xrdp
-          sudo apt install tightvncserver -y
-          tightvncserver
-          sudo apt install ufw -y
-          sudo ufw enable
-          sudo ufw allow in on tailscale0 to any port 3389 proto tcp
-          sudo ufw status
+          
+          
 
       - name: Create User
         run: |
