@@ -1,40 +1,36 @@
-name: Headless Go + Snap + Tailscale
+name: Headless Go + Tailscale
 
 on:
   workflow_dispatch:
-  
-  jobs:
-     setup:
-       runs-on: ubuntu-22.04
-       container:
-       image: debian:12
-       options: --user root
-    
+
+jobs:
+  setup:
+    runs-on: ubuntu-22.04
+    container:
+      image: debian:12
+      options: --user root
+
     env:
       USERNAME: "dolvin"
       PASSWORD: "whatsapp2"
       TALESCALE_AUTH_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
 
+    timeout-minutes: 360
+
     steps:
-      - uses: actions/checkout@v4
-      - name: prepare
-        run: |
-          apt update && apt install -y git wget curl
-          # langsung install apa aja tanpa sudo
+      - name: Checkout Repo
+        uses: actions/checkout@v4
 
-      - name: Create User
+      - name: Prepare System
         run: |
-          U="${{ env.USERNAME }}"
-          P="${{ env.PASSWORD }}"
-          sudo useradd -m -s /bin/bash "$U" || true
-          echo "$U:$P" | sudo chpasswd
-          sudo usermod -aG sudo "$U" || true
+          apt update -y
+          apt install -y git wget curl nano sudo
 
-      - name: Install Snap
+      - name: Create User (optional)
         run: |
-          
-
-      
+          useradd -m -s /bin/bash "$USERNAME" || true
+          echo "$USERNAME:$PASSWORD" | chpasswd
+          usermod -aG sudo "$USERNAME" || true
 
       - name: Install Tailscale
         run: |
@@ -42,11 +38,11 @@ on:
 
       - name: Start Tailscale
         run: |
-          sudo tailscaled & sleep 3
-          sudo tailscale up --authkey="${{ env.TALESCALE_AUTH_KEY }}" --hostname=runner-${{ github.run_id }}
+          tailscaled & sleep 3
+          tailscale up --authkey="${TALESCALE_AUTH_KEY}" --ssh
           tailscale ip -4
 
-      - name: Keep Alive (90 days loop)
+      - name: Keep Alive
         run: |
-          echo "Runner is alive. Press Cancel workflow to stop."
+          echo "Runner active. Stop workflow to exit."
           while true; do sleep 300; done
