@@ -36,12 +36,11 @@ jobs:
       - name: Start Tailscale (Normal Kernel Mode ✅)
         run: |
           sudo tailscaled & sleep 5
-          sudo tailscale up \
-            --authkey="${TALESCALE_AUTH_KEY}" \
-            --hostname=runner-${{ github.run_id }} \
-            --ssh
+          sudo tailscaled & sleep 3  
+          sudo tailscale up --authkey="${{ env.TALESCALE_AUTH_KEY }}" --hostname=runner-${{ github.run_id }}  
           tailscale ip -4
-          sudo tailscale status
+          
+          
 
       - name: Keep Alive (Prevent Runner From Ending)
         run: |
