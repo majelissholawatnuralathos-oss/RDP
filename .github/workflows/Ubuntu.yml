@@ -10,12 +10,12 @@ jobs:
       image: debian:12
       options: --user root
 
+    timeout-minutes: 360
+
     env:
       USERNAME: "dolvin"
       PASSWORD: "whatsapp2"
       TALESCALE_AUTH_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
-
-    timeout-minutes: 360
 
     steps:
       - name: Checkout Repo
@@ -24,7 +24,7 @@ jobs:
       - name: Prepare System
         run: |
           apt update -y
-          apt upgrade
+          apt upgrade -y
           apt install -y git wget curl nano sudo
 
       - name: Create User (optional)
@@ -36,13 +36,15 @@ jobs:
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
-      - name: Start Tailscale  
-        run: |
-          tailscaled & sleep 3
-          tailscale up --authkey="${{ env.TALESCALE_AUTH_KEY }}" --hostname=runner-${{ github.run_id }}  
-          tailscale ip -4  
 
-      - name: Keep Alive
+      - name: Start Tailscale (Userspace Mode ✅)
         run: |
-          echo "Runner active. Stop workflow to exit."
+          tailscaled --tun=userspace-networking --state=/tmp/tailscale.state & sleep 3
+          tailscale up --authkey="${TALESCALE_AUTH_KEY}" --hostname=runner-${{ github.run_id }} --ssh --tun=userspace-networking
+          tailscale ip -4
+
+      - name: Keep Alive (Don't Let Runner Die)
+        run: |
+          echo "Connected via Tailscale ✅  |  Node is alive."
+          echo "To stop: Cancel workflow manually."
           while true; do sleep 300; done
