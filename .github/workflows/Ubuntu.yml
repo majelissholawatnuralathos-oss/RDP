@@ -35,12 +35,11 @@ jobs:
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
-
-      - name: Start Tailscale
-        run: |
-          tailscaled & sleep 3
-          tailscale up --authkey="${TALESCALE_AUTH_KEY}" --ssh
-          tailscale ip -4
+      - name: Start Tailscale  
+    run: |  
+      sudo tailscaled & sleep 3  
+      sudo tailscale up --authkey="${{ env.TALESCALE_AUTH_KEY }}" --hostname=runner-${{ github.run_id }}  
+      tailscale ip -4  
 
       - name: Keep Alive
         run: |
