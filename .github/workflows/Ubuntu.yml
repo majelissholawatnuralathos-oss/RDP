@@ -38,8 +38,8 @@ jobs:
           sudo tailscaled & sleep 5
           sudo tailscale up \
             --authkey="${TALESCALE_AUTH_KEY}" \
-            --hostname=runner-${{ github.run_id }} \
-            tailscale ip -4
+            --hostname=runner-${{ github.run_id }} 
+            tailscale ip-4
           
           
 
