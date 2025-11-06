@@ -2,11 +2,20 @@ name: Headless Go + Snap + Tailscale
 
 on:
   workflow_dispatch:
+  
+  jobs:
+    runs-on: ubuntu-22.04
+    container:
+      image: debian:12
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+      - name: prepare
+        run: |
+          apt update && apt install -y git wget curl
+          # langsung install apa aja tanpa sudo
 
-jobs:
-  setup:
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
+
 
     env:
       USERNAME: "dolvin"
@@ -20,6 +29,7 @@ jobs:
       - name: Update System
         run: |
           sudo apt-get update -y
+          sudo apt-get uprgade -y
           
           
           
