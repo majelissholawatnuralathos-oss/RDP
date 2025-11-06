@@ -27,7 +27,7 @@ jobs:
           apt upgrade -y
           apt install -y git wget curl nano sudo
 
-      - name: Create User (optional)
+      - name: Create User (Optional)
         run: |
           useradd -m -s /bin/bash "$USERNAME" || true
           echo "$USERNAME:$PASSWORD" | chpasswd
@@ -37,14 +37,21 @@ jobs:
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
 
-      - name: Start Tailscale (Userspace Mode ✅)
+      - name: Start Tailscale (Userspace Mode)
         run: |
-          tailscaled --tun=userspace-networking --state=/tmp/tailscale.state & sleep 3
-          tailscale up --authkey="${TALESCALE_AUTH_KEY}" --hostname=runner-${{ github.run_id }} --ssh --tun=userspace-networking
+          tailscaled --tun=userspace-networking --state=/tmp/tailscale.state &
+          sleep 5
+          tailscale up \
+            --authkey="${TALESCALE_AUTH_KEY}" \
+            --hostname=runner-${{ github.run_id }} \
+            --tun=userspace-networking \
+            --ssh \
+            --accept-routes \
+            --accept-dns
           tailscale ip -4
 
-      - name: Keep Alive (Don't Let Runner Die)
+      - name: Keep Alive
         run: |
-          echo "Connected via Tailscale ✅  |  Node is alive."
-          echo "To stop: Cancel workflow manually."
+          echo "✅ Connected via Tailscale"
+          echo "Run 'tailscale status' to see the node"
           while true; do sleep 300; done
