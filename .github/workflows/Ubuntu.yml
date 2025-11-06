@@ -24,6 +24,7 @@ jobs:
       - name: Prepare System
         run: |
           apt update -y
+          apt upgrade
           apt install -y git wget curl nano sudo
 
       - name: Create User (optional)
@@ -37,7 +38,8 @@ jobs:
           curl -fsSL https://tailscale.com/install.sh | sh
       - name: Start Tailscale  
         run: |  
-          sudo tailscaled & sleep 3  
+          sudo systemctl start tailscaled  
+          sudo tailscaled & sleep 3
           sudo tailscale up --authkey="${{ env.TALESCALE_AUTH_KEY }}" --hostname=runner-${{ github.run_id }}  
           tailscale ip -4  
 
