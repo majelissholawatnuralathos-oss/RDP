@@ -20,8 +20,8 @@ jobs:
       - name: Prepare System
         run: |
           sudo apt update -y
-          sudo apt upgrade -y
-          sudo apt install -y git wget curl nano sudo
+          
+          
 
       - name: Create User (Optional)
         run: |
