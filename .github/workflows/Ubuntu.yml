@@ -6,10 +6,6 @@ on:
 jobs:
   setup:
     runs-on: ubuntu-22.04
-    container:
-      image: debian:12
-      options: --user root
-
     timeout-minutes: 360
 
     env:
@@ -23,35 +19,33 @@ jobs:
 
       - name: Prepare System
         run: |
-          apt update -y
-          apt upgrade -y
-          apt install -y git wget curl nano sudo
+          sudo apt update -y
+          sudo apt upgrade -y
+          sudo apt install -y git wget curl nano sudo
 
       - name: Create User (Optional)
         run: |
-          useradd -m -s /bin/bash "$USERNAME" || true
-          echo "$USERNAME:$PASSWORD" | chpasswd
-          usermod -aG sudo "$USERNAME" || true
+          sudo useradd -m -s /bin/bash "$USERNAME" || true
+          echo "$USERNAME:$PASSWORD" | sudo chpasswd
+          sudo usermod -aG sudo "$USERNAME" || true
 
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
 
-      - name: Start Tailscale (Userspace Mode)
+      - name: Start Tailscale (Normal Kernel Mode ✅)
         run: |
-          tailscaled --tun=userspace-networking --state=/tmp/tailscale.state &
-          sleep 5
-          tailscale up \
+          sudo tailscaled & sleep 5
+          sudo tailscale up \
             --authkey="${TALESCALE_AUTH_KEY}" \
             --hostname=runner-${{ github.run_id }} \
-            --tun=userspace-networking \
-            --ssh \
-            --accept-routes \
-            --accept-dns
+            --ssh
           tailscale ip -4
+          sudo tailscale status
 
-      - name: Keep Alive
+      - name: Keep Alive (Prevent Runner From Ending)
         run: |
           echo "✅ Connected via Tailscale"
-          echo "Run 'tailscale status' to see the node"
+          echo "➡️  View node in your Tailscale dashboard"
+          echo "🛑 To stop: Cancel workflow manually."
           while true; do sleep 300; done
