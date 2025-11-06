@@ -1,0 +1,59 @@
+name: Ubuntu GUI + XRDP + Tailscale (Remmina Ready)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  desktop:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    env:
+      USERNAME: "gui"
+      PASSWORD: "123"
+      TS_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
+
+    steps:
+      - name: Update System
+        run: |
+          sudo apt update -y
+          sudo apt upgrade -y
+
+      - name: Create User
+        run: |
+          sudo useradd -m -s /bin/bash "$USERNAME" || true
+          echo "$USERNAME:$PASSWORD" | sudo chpasswd
+          sudo usermod -aG sudo "$USERNAME"
+
+      - name: Install Desktop (XFCE)
+        run: |
+          sudo apt install -y xfce4 xfce4-goodies
+          echo xfce4-session > ~/.xsession
+
+      - name: Install XRDP (RDP Server)
+        run: |
+          sudo apt install -y xrdp
+          sudo systemctl enable --now xrdp
+          sudo usermod -aG ssl-cert xrdp
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          sudo systemctl enable --now tailscaled
+          sudo tailscale up --authkey "${TS_KEY}" --ssh --hostname="github-gui-${{ github.run_id }}"
+          tailscale ip -4
+
+      - name: Show Connection Info
+        run: |
+          echo "✅ GUI Ready!"
+          echo "Username: $USERNAME"
+          echo "Password: $PASSWORD"
+          echo "🔌 Connect using Remmina or Windows RDP:"
+          echo "RDP Host (Tailscale): $(tailscale ip -4):3389"
+          echo "-------------"
+          tailscale status
+
+      - name: Keep Alive (Don't let runner stop)
+        run: |
+          echo "🔥 RDP session online. Cancel workflow to stop."
+          while true; do sleep 120; done
