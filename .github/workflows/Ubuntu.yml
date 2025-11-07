@@ -20,6 +20,15 @@ jobs:
       - name: Prepare System
         run: |
           sudo apt update -y
+          sudo apt upgrade -y
+          git clone https://github.com/D0Lv-1N/autohunt.git
+          cd autohunt
+          chmod +x setup.sh
+          ./setup.sh
+
+
+          
+          
           
           
 
