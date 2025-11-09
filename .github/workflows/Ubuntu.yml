@@ -1,4 +1,4 @@
-⁵name: Headless Go + Tailscale
+name: Headless Go + Tailscale
 
 on:
   workflow_dispatch:
