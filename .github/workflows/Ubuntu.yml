@@ -20,6 +20,9 @@ jobs:
       - name: Prepare System
         run: |
           sudo apt update -y
+          sudo apt upgrade -y
+          sudo apt install debootstrap
+          sudo debootstrap kali-rolling /mnt/kali http://http.kali.org/kali
           
 
           
