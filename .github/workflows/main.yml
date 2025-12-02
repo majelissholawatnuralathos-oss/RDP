@@ -1,66 +1,17 @@
-name: tools
+    name: Deploy with Tailscale
 
-on:
-  workflow_dispatch:
+    on: [push]
 
-jobs:
-  setup:
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
+    jobs:
+      deploy:
+        runs-on: windows-latest
+        steps:
+          - name: Checkout repository
+            uses: actions/checkout@v4
 
-    env:
-      USERNAME: "dolvin"
-      PASSWORD: "whatsapp2"
-      TALESCALE_AUTH_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Update System
-        run: |
-          sudo su
-          sudo apt-get update -y
-          sudo apt-get upgrade -y
-          go version
-          sudo apt install npm
-          npm install -g @google/gemini-cli
-
-      - name: Create User
-        run: |
-          U="${{ env.USERNAME }}"
-          P="${{ env.PASSWORD }}"
-          sudo useradd -m -s /bin/bash "$U" || true
-          echo "$U:$P" | sudo chpasswd
-          sudo usermod -aG sudo "$U" || true
-
-      - name: Install Snap
-        run: |
-          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
-          go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-          go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
-          go install github.com/hahwul/dalfox/v2@latest
-          go install github.com/ffuf/ffuf/v2@latest
-          go install github.com/lc/gau/v2/cmd/gau@latest
-          sudo snap install seclists
-          git clone https://github.com/dwisiswant0/gf-patterns ~/.gf
-          export GF_PATH=~/.gf
-          source ~/.bashrc
-          
-
-      
-
-      - name: Install Tailscale
-        run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
-
-      - name: Start Tailscale
-        run: |
-          sudo tailscaled & sleep 3
-          sudo tailscale up --authkey="${{ env.TALESCALE_AUTH_KEY }}" --hostname=runner-${{ github.run_id }}
-          tailscale ip -4
-
-      - name: Keep Alive (90 days loop)
-        run: |
-          echo "Runner is alive. Press Cancel workflow to stop."
-          while true; do sleep 300; done
+          - name: Connect to Tailscale
+            uses: tailscale/github-action@v2
+            with:
+              oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+              oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+              tags: tag:github-actions-runner # Optional: Apply tags for ACLs
