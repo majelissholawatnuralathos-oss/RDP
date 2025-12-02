@@ -12,8 +12,8 @@ jobs:
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
         with:
-          oauth-client-id: ${{ secrets.TAILSCLAE_AUTHKEY }}
-          oauth-secret: ${{ secrets.TAILSCLAE_AUTHKEY }}
+          oauth-client-id: ${{ secrets.TAILSCALE_AUTHKEY }}
+          oauth-secret: ${{ secrets.TAILSCALE_AUTHKEY }}
           tags: tag:ci
       
       - name: Enable Remote Desktop
