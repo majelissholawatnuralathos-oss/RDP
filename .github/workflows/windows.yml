@@ -1,0 +1,55 @@
+name: RDP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rdp-job:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Enable RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Restart-Service -Name TermService -Force
+
+      - name: Create RDP User
+        run: |
+          $password = -join ((33..126) | Get-Random -Count 16 | % {[char]$_})
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
+          New-LocalUser -Name "RDP" -Password $securePass -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "RDP"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
+          echo "RDP_USER=RDP" >> $env:GITHUB_ENV
+          echo "RDP_PASS=$password" >> $env:GITHUB_ENV
+
+      - name: Install Tailscale
+        run: |
+          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
+          $out = "$env:TEMP\tailscale.msi"
+          Invoke-WebRequest -Uri $url -OutFile $out
+          Start-Process msiexec.exe -ArgumentList "/i $out /quiet /norestart" -Wait
+
+      - name: Connect Tailscale
+        run: |
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-${{ github.run_id }}
+          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          echo "TS_IP=$ip" >> $env:GITHUB_ENV
+
+      - name: Show Connection Info
+        run: |
+          Write-Host "`n============================"
+          Write-Host "✅ RDP Connected Successfully"
+          Write-Host "IP Address (Tailscale): $env:TS_IP"
+          Write-Host "Username: $env:RDP_USER"
+          Write-Host "Password: $env:RDP_PASS"
+          Write-Host "============================`n"
+
+      - name: Keep Alive
+        run: |
+          while ($true) {
+            Write-Host "[$(Get-Date)] RDP Running..."
+            Start-Sleep -Seconds 300
+          }
