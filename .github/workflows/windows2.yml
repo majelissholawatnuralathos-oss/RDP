@@ -17,7 +17,7 @@ jobs:
 
       - name: Create RDP User
         run: |
-          $password = ConvertTo-SecureString "whatsapp2" -AsPlainText -Force
+          $password = ConvertTo-SecureString "@Whatsapp2" -AsPlainText -Force
           New-LocalUser -Name "dolvin" -Password $password -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "dolvin"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "dolvin"
