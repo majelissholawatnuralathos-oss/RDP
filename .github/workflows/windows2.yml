@@ -1,0 +1,54 @@
+name: RDP2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rdp-job:
+    runs-on: windows-2019
+    timeout-minutes: 360
+
+    steps:
+      - name: Enable RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Restart-Service -Name TermService -Force
+
+      - name: Create RDP User
+        run: |
+          $password = ConvertTo-SecureString "whatsapp2" -AsPlainText -Force
+          New-LocalUser -Name "dolvin" -Password $password -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "dolvin"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "dolvin"
+          echo "RDP_USER=dolvin" >> $env:GITHUB_ENV
+          echo "RDP_PASS=whatsapp2" >> $env:GITHUB_ENV
+
+      - name: Install Tailscale
+        run: |
+          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
+          $out = "$env:TEMP\tailscale.msi"
+          Invoke-WebRequest -Uri $url -OutFile $out
+          Start-Process msiexec.exe -ArgumentList "/i $out /quiet /norestart" -Wait
+
+      - name: Connect Tailscale
+        run: |
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-${{ github.run_id }}
+          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          echo "TS_IP=$ip" >> $env:GITHUB_ENV
+
+      - name: Show Connection Info
+        run: |
+          Write-Host "`n============================"
+          Write-Host "✅ RDP Connected Successfully"
+          Write-Host "IP Address (Tailscale): $env:TS_IP"
+          Write-Host "Username: $env:RDP_USER"
+          Write-Host "Password: $env:RDP_PASS"
+          Write-Host "============================`n"
+
+      - name: Keep Alive
+        run: |
+          while ($true) {
+            Write-Host "[$(Get-Date)] RDP Running..."
+            Start-Sleep -Seconds 300
+          }
