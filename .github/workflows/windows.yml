@@ -5,7 +5,7 @@ on:
 
 jobs:
   rdp-job:
-    runs-on: windows-latest
+    runs-on: windows-2009
     timeout-minutes: 360
 
     steps:
