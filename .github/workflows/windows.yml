@@ -129,26 +129,6 @@ jobs:
             -Wait
 
 
-      # Install gdown
-      - name: Install gdown
-        run: |
-          pip install gdown
-
-
-      # Download ZIP from Google Drive
-      - name: Install gdown
-        run: |
-          python -m pip install gdown
-
-
-      # Extract ZIP
-      - name: Extract PB ZIP
-        run: |
-          Expand-Archive `
-            -Path "$env:"C:\Users\dolvin\Downloads\bahn.zip" `
-            -DestinationPath "$env:"C:\Users\dolvin\Downloads\bahn" `
-            -Force
-
 
       # Show Info
       - name: Show RDP Info
