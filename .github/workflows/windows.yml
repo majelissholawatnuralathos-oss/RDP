@@ -145,8 +145,8 @@ jobs:
       - name: Extract PB ZIP
         run: |
           Expand-Archive `
-            -Path "$env:USERPROFILE\Desktop\PB.zip" `
-            -DestinationPath "$env:USERPROFILE\Desktop\PointBlank" `
+            -Path "$env:USERPROFILE\Downloads\bahn.zip" `
+            -DestinationPath "$env:USERPROFILE\Desktop\bahn" `
             -Force
 
 
