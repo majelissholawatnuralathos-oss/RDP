@@ -10,32 +10,51 @@ jobs:
 
     steps:
 
+      # Enable PowerShell script execution
+      - name: Enable Script Execution
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+
       # Enable RDP
       - name: Enable RDP
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+            -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Restart-Service -Name TermService -Force
+          Restart-Service TermService -Force
 
-      # Create User
+      # Create RDP User
       - name: Create RDP User
         run: |
           $password = ConvertTo-SecureString "@Whatsapp2" -AsPlainText -Force
-          New-LocalUser -Name "dolvin" -Password $password -AccountNeverExpires -ErrorAction SilentlyContinue
+
+          New-LocalUser -Name "dolvin" `
+            -Password $password `
+            -AccountNeverExpires `
+            -ErrorAction SilentlyContinue
+
           Add-LocalGroupMember -Group "Administrators" -Member "dolvin" -ErrorAction SilentlyContinue
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "dolvin" -ErrorAction SilentlyContinue
 
           echo "RDP_USER=dolvin" >> $env:GITHUB_ENV
           echo "RDP_PASS=@Whatsapp2" >> $env:GITHUB_ENV
 
-      # Windows Tweaks Chris Titus
-      - name: Auto Tweaks Windows (Chris Titus Standard)
+      # Download WinUtil Source
+      - name: Download WinUtil
         run: |
-          Write-Host "Applying Windows tweaks..."
-          Set-ExecutionPolicy Bypass -Scope Process -Force
-          irm christitus.com/win | iex
-          Invoke-WinUtil -Preset Standard -Silent
-          Write-Host "Tweaks Done."
+          git clone --depth 1 https://github.com/ChrisTitusTech/winutil.git $env:TEMP\winutil
+
+      # Compile WinUtil
+      - name: Compile WinUtil
+        run: |
+          cd $env:TEMP\winutil
+          powershell -ExecutionPolicy Bypass -File Compile.ps1
+
+      # Run Tweaks Standard (Silent)
+      - name: Apply Windows Tweaks Standard
+        run: |
+          cd $env:TEMP\winutil
+          powershell -ExecutionPolicy Bypass -Command ".\winutil.ps1 -Preset Standard -Silent"
 
       # Safety: Re-enable RDP
       - name: Re-enable RDP Safety
@@ -48,10 +67,14 @@ jobs:
         run: |
           $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
           $out = "$env:TEMP\tailscale.msi"
-          Invoke-WebRequest -Uri $url -OutFile $out
-          Start-Process msiexec.exe -ArgumentList "/i $out /quiet /norestart" -Wait
 
-      # Connect Tailscale Authkey
+          Invoke-WebRequest -Uri $url -OutFile $out
+
+          Start-Process msiexec.exe `
+            -ArgumentList "/i $out /quiet /norestart" `
+            -Wait
+
+      # Connect Tailscale using Authkey
       - name: Connect Tailscale
         run: |
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
@@ -61,22 +84,29 @@ jobs:
             --accept-dns=false
 
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+
           echo "TS_IP=$ip" >> $env:GITHUB_ENV
 
-      # Install Visual C++ Redistributables
-      - name: Install VC++ Redistributables
+      # Install VC++ Redistributable
+      - name: Install VC++
         run: |
           $url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
           $out = "$env:TEMP\vc_redist.exe"
+
           Invoke-WebRequest $url -OutFile $out
-          Start-Process $out -ArgumentList "/install /quiet /norestart" -Wait
+
+          Start-Process $out `
+            -ArgumentList "/install /quiet /norestart" `
+            -Wait
 
       # Install DirectX Runtime
       - name: Install DirectX
         run: |
           $url = "https://download.microsoft.com/download/1/1/C/11C7E9C1-3A9A-4B9B-8C3D-3F6D5C0E4F93/directx_Jun2010_redist.exe"
           $out = "$env:TEMP\directx.exe"
+
           Invoke-WebRequest $url -OutFile $out
+
           Start-Process $out -ArgumentList "/Q" -Wait
 
       # Download Point Blank Installer
@@ -84,18 +114,19 @@ jobs:
         run: |
           $url = "https://pb.garena.co.id/download/PointBlankInstaller.exe"
           $out = "$env:USERPROFILE\Desktop\PointBlankInstaller.exe"
+
           Invoke-WebRequest $url -OutFile $out
 
-      # Show Info
+      # Show RDP Info
       - name: Show Connection Info
         run: |
           Write-Host ""
           Write-Host "=============================="
-          Write-Host "✅ RDP READY"
+          Write-Host "RDP READY"
           Write-Host "IP       : $env:TS_IP"
           Write-Host "USER     : $env:RDP_USER"
           Write-Host "PASS     : $env:RDP_PASS"
-          Write-Host "PB FILE  : Desktop"
+          Write-Host "INSTALLER: Desktop"
           Write-Host "=============================="
           Write-Host ""
 
