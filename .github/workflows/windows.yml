@@ -145,8 +145,8 @@ jobs:
       - name: Extract PB ZIP
         run: |
           Expand-Archive `
-            -Path "$env:C:\Users\dolvin\Downloads\bahn.zip" `
-            -DestinationPath "$env:C:\Users\dolvin\Downloads\bahn" `
+            -Path "$env:"C:\Users\dolvin\Downloads\bahn.zip" `
+            -DestinationPath "$env:"C:\Users\dolvin\Downloads\bahn" `
             -Force
 
 
