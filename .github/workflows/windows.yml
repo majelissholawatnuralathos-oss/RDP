@@ -134,7 +134,7 @@ jobs:
 
       - name: Download ZIP from Google Drive
         run: |
-         $output = "C:UsersdolvinDesktopbahn.zip"
+         $output = "C:Users/dolvin/Desktop/bahn.zip"
 
          python -m gdown 1YLPDhH0-fgaXihTshYgDCYFQ0c1CFbZp `
           -O $output
