@@ -18,11 +18,24 @@ jobs:
       - name: Create RDP User
         run: |
           $password = ConvertTo-SecureString "@Whatsapp2" -AsPlainText -Force
-          New-LocalUser -Name "dolvin" -Password $password -AccountNeverExpires
-          Add-LocalGroupMember -Group "Administrators" -Member "dolvin"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "dolvin"
+          New-LocalUser -Name "dolvin" -Password $password -AccountNeverExpires -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Administrators" -Member "dolvin" -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "dolvin" -ErrorAction SilentlyContinue
           echo "RDP_USER=dolvin" >> $env:GITHUB_ENV
-          echo "RDP_PASS=whatsapp2" >> $env:GITHUB_ENV
+          echo "RDP_PASS=@Whatsapp2" >> $env:GITHUB_ENV
+
+      - name: Windows Auto Tweaks (Chris Titus Standard)
+        run: |
+          Write-Host "Applying Chris Titus Standard Tweaks..."
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          irm christitus.com/win | iex
+          Invoke-WinUtil -Preset Standard -Silent
+          Write-Host "Tweaks applied successfully."
+
+      - name: Re-enable RDP Safety
+        run: |
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Restart-Service -Name TermService -Force
 
       - name: Install Tailscale
         run: |
@@ -31,20 +44,27 @@ jobs:
           Invoke-WebRequest -Uri $url -OutFile $out
           Start-Process msiexec.exe -ArgumentList "/i $out /quiet /norestart" -Wait
 
-      - name: Connect Tailscale
+      - name: Connect Tailscale (Authkey)
         run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-${{ github.run_id }}
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
+            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} `
+            --hostname=gh-runner-${{ github.run_id }} `
+            --accept-routes `
+            --accept-dns=false
+
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TS_IP=$ip" >> $env:GITHUB_ENV
 
       - name: Show Connection Info
         run: |
-          Write-Host "`n============================"
-          Write-Host "✅ RDP Connected Successfully"
-          Write-Host "IP Address (Tailscale): $env:TS_IP"
-          Write-Host "Username: $env:RDP_USER"
-          Write-Host "Password: $env:RDP_PASS"
-          Write-Host "============================`n"
+          Write-Host ""
+          Write-Host "============================"
+          Write-Host "✅ RDP READY"
+          Write-Host "IP Address : $env:TS_IP"
+          Write-Host "Username   : $env:RDP_USER"
+          Write-Host "Password   : $env:RDP_PASS"
+          Write-Host "============================"
+          Write-Host ""
 
       - name: Keep Alive
         run: |
