@@ -151,11 +151,6 @@ jobs:
             $zip = "C:\bahn.zip"
             $dest = "C:\!bahn"
 
-            if (!(Test-Path $dest)) {
-             New-Item -ItemType Directory -Path $dest -Force
-             }
-             Expand-Archive -Path $zip -DestinationPath $dest -Force
-             Write-Host "Extract completed to $dest"
              
       # Show Info
       - name: Show RDP Info
