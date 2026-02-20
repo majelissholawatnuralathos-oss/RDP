@@ -136,14 +136,13 @@ jobs:
 
 
       # Download ZIP from Google Drive
-      - name: Download PointBlank ZIP
+      - name: Install gdown
         run: |
-          gdown 1YLPDhH0-fgaXihTshYgDCYFQ0c1CFbZp `
-            -O "$env:USERPROFILE\Desktop\PB.zip"
+          python -m pip install gdown
 
 
       # Extract ZIP
-      - name: Extract PointBlank ZIP
+      - name: Extract PB ZIP
         run: |
           Expand-Archive `
             -Path "$env:USERPROFILE\Desktop\PB.zip" `
