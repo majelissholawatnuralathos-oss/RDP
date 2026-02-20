@@ -140,7 +140,7 @@ jobs:
       # Download Point Blank
       - name: Download Point Blank
         run: |
-          $url = "https://pb.garena.co.id/download/PointBlankInstaller.exe"
+          $url = "https://zpt-id.zepetto.com/ID/PointBlank/Live_zLauncher/ZLauncherSetup/Install_POINTBLANK_20251111.exe"
           $out = "$env:USERPROFILE\Desktop\PointBlankInstaller.exe"
 
           Invoke-WebRequest $url -OutFile $out
