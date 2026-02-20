@@ -128,7 +128,23 @@ jobs:
             -ArgumentList "/install /quiet /norestart" `
             -Wait
 
+      - name: Install gdown
+        run: |
+         python -m pip install gdown
 
+      - name: Download ZIP from Google Drive
+        run: |
+         $output = "$env:USERPROFILE\Desktop\bahn.zip"
+
+         python -m gdown 1YLPDhH0-fgaXihTshYgDCYFQ0c1CFbZp `
+          -O $output
+
+         if (Test-Path $output) {
+         Write-Host "Download SUCCESS"
+         Get-Item $output | Format-List Name,Length
+         } else {
+         Write-Host "Download FAILED" 
+          }
 
       # Show Info
       - name: Show RDP Info
