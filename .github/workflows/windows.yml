@@ -1,4 +1,3 @@
-
 name: RDP1
 
 on:
@@ -6,50 +5,164 @@ on:
 
 jobs:
   rdp-job:
-    runs-on: windows-2022
+    runs-on: windows-2019
     timeout-minutes: 360
 
     steps:
+
+      # Enable script execution
+      - name: Enable Script Execution
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+
+      # Enable RDP
       - name: Enable RDP
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Restart-Service -Name TermService -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+            -Name "fDenyTSConnections" -Value 0
 
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+          Restart-Service TermService -Force
+
+      # Create User
       - name: Create RDP User
         run: |
           $password = ConvertTo-SecureString "@Whatsapp2" -AsPlainText -Force
-          New-LocalUser -Name "dolvin" -Password $password -AccountNeverExpires
-          Add-LocalGroupMember -Group "Administrators" -Member "dolvin"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "dolvin"
-          echo "RDP_USER=dolvin" >> $env:GITHUB_ENV
-          echo "RDP_PASS=whatsapp2" >> $env:GITHUB_ENV
 
+          New-LocalUser -Name "dolvin" `
+            -Password $password `
+            -AccountNeverExpires `
+            -ErrorAction SilentlyContinue
+
+          Add-LocalGroupMember -Group "Administrators" -Member "dolvin" -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "dolvin" -ErrorAction SilentlyContinue
+
+          echo "RDP_USER=dolvin" >> $env:GITHUB_ENV
+          echo "RDP_PASS=@Whatsapp2" >> $env:GITHUB_ENV
+
+
+      # CUSTOM TWEAKS (FAST & OPTIMIZED)
+      - name: Custom Windows Performance Tweaks
+        run: |
+          Write-Host "Applying custom tweaks..."
+
+          # Disable Defender realtime
+          Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+
+          Stop-Service WinDefend -Force -ErrorAction SilentlyContinue
+          Set-Service WinDefend -StartupType Disabled -ErrorAction SilentlyContinue
+
+          # Disable telemetry
+          Stop-Service DiagTrack -Force -ErrorAction SilentlyContinue
+          Set-Service DiagTrack -StartupType Disabled -ErrorAction SilentlyContinue
+
+          # Disable Windows Update
+          Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
+          Set-Service wuauserv -StartupType Disabled -ErrorAction SilentlyContinue
+
+          # Disable Search indexing
+          Stop-Service WSearch -Force -ErrorAction SilentlyContinue
+          Set-Service WSearch -StartupType Disabled -ErrorAction SilentlyContinue
+
+          # Disable Superfetch
+          Stop-Service SysMain -Force -ErrorAction SilentlyContinue
+          Set-Service SysMain -StartupType Disabled -ErrorAction SilentlyContinue
+
+          # Set High Performance
+          powercfg -setactive SCHEME_MIN
+
+          # Disable sleep
+          powercfg -change -standby-timeout-ac 0
+
+
+      # RDP ULTRA SMOOTH OPTIMIZATION
+      - name: Optimize RDP Performance
+        run: |
+          reg add "HKCU\Control Panel\Desktop" /v DragFullWindows /t REG_SZ /d 0 /f
+          reg add "HKCU\Control Panel\Desktop" /v MenuShowDelay /t REG_SZ /d 0 /f
+          reg add "HKCU\Control Panel\Desktop" /v FontSmoothing /t REG_SZ /d 0 /f
+
+          reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+            /v TaskbarAnimations /t REG_DWORD /d 0 /f
+
+          reg add "HKCU\Software\Microsoft\Windows\DWM" `
+            /v EnableAeroPeek /t REG_DWORD /d 0 /f
+
+
+      # Re-enable RDP safety
+      - name: Re-enable RDP Safety
+        run: |
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Restart-Service TermService -Force
+
+
+      # Install Tailscale
       - name: Install Tailscale
         run: |
           $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
           $out = "$env:TEMP\tailscale.msi"
-          Invoke-WebRequest -Uri $url -OutFile $out
-          Start-Process msiexec.exe -ArgumentList "/i $out /quiet /norestart" -Wait
 
+          Invoke-WebRequest $url -OutFile $out
+
+          Start-Process msiexec.exe `
+            -ArgumentList "/i $out /quiet /norestart" `
+            -Wait
+
+
+      # Connect Tailscale Authkey
       - name: Connect Tailscale
         run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-${{ github.run_id }}
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
+            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} `
+            --hostname=gh-runner-${{ github.run_id }} `
+            --accept-routes `
+            --accept-dns=false
+
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+
           echo "TS_IP=$ip" >> $env:GITHUB_ENV
 
+
+      # Install VC++
+      - name: Install VC++
+        run: |
+          $url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+          $out = "$env:TEMP\vc.exe"
+
+          Invoke-WebRequest $url -OutFile $out
+
+          Start-Process $out `
+            -ArgumentList "/install /quiet /norestart" `
+            -Wait
+
+
+      # Download Point Blank
+      - name: Download Point Blank
+        run: |
+          $url = "https://pb.garena.co.id/download/PointBlankInstaller.exe"
+          $out = "$env:USERPROFILE\Desktop\PointBlankInstaller.exe"
+
+          Invoke-WebRequest $url -OutFile $out
+
+
+      # Show Info
       - name: Show Connection Info
         run: |
-          Write-Host "`n============================"
-          Write-Host "✅ RDP Connected Successfully"
-          Write-Host "IP Address (Tailscale): $env:TS_IP"
-          Write-Host "Username: $env:RDP_USER"
-          Write-Host "Password: $env:RDP_PASS"
-          Write-Host "============================`n"
+          Write-Host ""
+          Write-Host "=============================="
+          Write-Host "RDP READY"
+          Write-Host "IP       : $env:TS_IP"
+          Write-Host "USER     : $env:RDP_USER"
+          Write-Host "PASS     : $env:RDP_PASS"
+          Write-Host "=============================="
+          Write-Host ""
 
+
+      # Keep Alive
       - name: Keep Alive
         run: |
           while ($true) {
-            Write-Host "[$(Get-Date)] RDP Running..."
+            Write-Host "[$(Get-Date)] RDP Active..."
             Start-Sleep -Seconds 300
           }
