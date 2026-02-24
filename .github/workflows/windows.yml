@@ -149,7 +149,7 @@ jobs:
       - name:  Extract bahn
         run: |
             $zip = "C:\bahn.zip"
-            $dest = "C:\!bahn"
+            $dest = "C:\bahn"
 
              
       # Show Info
