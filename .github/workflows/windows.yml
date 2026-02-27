@@ -69,7 +69,7 @@ jobs:
 
 
       # =================================
-      # 3️⃣ INSTALL DEPENDENCY
+      # 3️⃣ DEPENDENCY
       # =================================
 
       - name: Install VC++
@@ -80,8 +80,8 @@ jobs:
             -ArgumentList "/install /quiet /norestart" `
             -Wait
 
-      - name: Install aria2
-        run: choco install aria2 -y
+      - name: Install gdown
+        run: python -m pip install gdown
 
 
       # =================================
@@ -90,16 +90,15 @@ jobs:
 
       - name: Download bahn.zip
         run: |
-          aria2c -x 8 -s 8 `
-          "https://drive.usercontent.google.com/download?id=1YLPDhH0-fgaXihTshYgDCYFQ0c1CFbZp&export=download&confirm=t" `
-          -d "$env:TEMP" `
-          -o "bahn.zip"
+          $output = "$env:TEMP\bahn.zip"
+          python -m gdown --fuzzy 1YLPDhH0-fgaXihTshYgDCYFQ0c1CFbZp -O $output
+          echo "BAHN_ZIP=$output" >> $env:GITHUB_ENV
 
       - name: Extract bahn
         run: |
           Remove-Item -Recurse -Force "C:\bahn" -ErrorAction SilentlyContinue
-          Expand-Archive -Path "$env:TEMP\bahn.zip" -DestinationPath "C:\" -Force
-          Remove-Item "$env:TEMP\bahn.zip" -Force
+          Expand-Archive -Path $env:BAHN_ZIP -DestinationPath "C:\" -Force
+          Remove-Item $env:BAHN_ZIP -Force
 
       - name: Install Launcher
         run: |
@@ -115,27 +114,26 @@ jobs:
 
       - name: Download PointBlank ID.zip
         run: |
-          aria2c -x 16 -s 16 `
-          "https://drive.usercontent.google.com/download?id=1mLMBZfpndqcdC_CtKkonwHlFD6gJlNM0&export=download&confirm=t" `
-          -d "$env:TEMP" `
-          -o "PB_GAME.zip"
+          $output = "$env:TEMP\PB_GAME.zip"
+          python -m gdown --fuzzy 1mLMBZfpndqcdC_CtKkonwHlFD6gJlNM0 -O $output
+          echo "PB_ZIP=$output" >> $env:GITHUB_ENV
 
       - name: Validate Game Zip
         run: |
-          $size = (Get-Item "$env:TEMP\PB_GAME.zip").Length
+          $size = (Get-Item $env:PB_ZIP).Length
           if ($size -lt 100000000) {
-              Write-Host "File tidak valid / terlalu kecil!"
+              Write-Host "File tidak valid atau terlalu kecil!"
               exit 1
           }
 
       - name: Extract Game Data
         run: |
-          Expand-Archive -Path "$env:TEMP\PB_GAME.zip" -DestinationPath "C:\Zepetto" -Force
-          Remove-Item "$env:TEMP\PB_GAME.zip" -Force
+          Expand-Archive -Path $env:PB_ZIP -DestinationPath "C:\Zepetto" -Force
+          Remove-Item $env:PB_ZIP -Force
 
 
       # =================================
-      # 6️⃣ TWEAKS (SETELAH SEMUA DOWNLOAD)
+      # 6️⃣ TWEAKS TERAKHIR
       # =================================
 
       - name: SUPER OPTIMIZATION
