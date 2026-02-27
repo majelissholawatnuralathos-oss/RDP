@@ -207,6 +207,30 @@ jobs:
           }
 
 
+      - name: Auto Start PB Download
+        shell: powershell
+        run: |
+
+         $launcher = "C:\Program Files\Zepetto\PointBlank\PointBlankLauncher.exe"
+
+         if (Test-Path $launcher) {
+
+          Start-Process $launcher
+           Start-Sleep -Seconds 15   # tunggu launcher kebuka
+
+          Add-Type -AssemblyName System.Windows.Forms
+
+                # Pastikan launcher fokus
+              [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+                Start-Sleep -Milliseconds 500
+
+                    # Tekan ENTER (asumsi tombol INSTALL kepilih)
+                 [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+
+                Write-Host "Download trigger dikirim."
+                }
+
+
       - name: Show RDP Info
         run: |
           Write-Host ""
