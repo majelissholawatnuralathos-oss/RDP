@@ -153,13 +153,7 @@ jobs:
           Remove-Item $env:PB_ZIP -Force
 
 
-      # ==============================
-      # OPEN LAUNCHER
-      # ==============================
-
-      - name: Open Launcher
-        run: Start-Process "C:\Zepetto\Z-Launcher(ID)\ZLauncher.exe"
-
+    
 
       - name: Show Info
         run: |
