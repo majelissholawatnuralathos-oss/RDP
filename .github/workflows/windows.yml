@@ -64,12 +64,9 @@ jobs:
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TS_IP=$ip" >> $env:GITHUB_ENV
 
-      - name: Wait Network Ready
-        run: Start-Sleep -Seconds 5
-
 
       # =================================
-      # 3️⃣ DEPENDENCY
+      # 3️⃣ INSTALL DEPENDENCY
       # =================================
 
       - name: Install VC++
@@ -80,25 +77,37 @@ jobs:
             -ArgumentList "/install /quiet /norestart" `
             -Wait
 
-      - name: Install gdown
-        run: python -m pip install gdown
+      - name: Install rclone
+        run: choco install rclone -y
 
 
       # =================================
-      # 4️⃣ DOWNLOAD & INSTALL LAUNCHER
+      # 4️⃣ SETUP RCLONE (SERVICE ACCOUNT)
+      # =================================
+
+      - name: Setup rclone config
+        run: |
+          mkdir C:\rclone
+          echo "${{ secrets.GDRIVE_JSON }}" > C:\rclone\gdrive.json
+
+          rclone config create gdrive drive `
+            service_account_file C:\rclone\gdrive.json `
+            scope drive.readonly
+
+
+      # =================================
+      # 5️⃣ DOWNLOAD LAUNCHER (FROM DRIVE)
       # =================================
 
       - name: Download bahn.zip
         run: |
-          $output = "$env:TEMP\bahn.zip"
-          python -m gdown --fuzzy 1YLPDhH0-fgaXihTshYgDCYFQ0c1CFbZp -O $output
-          echo "BAHN_ZIP=$output" >> $env:GITHUB_ENV
+          rclone copy gdrive:bahn.zip C:\bahn_temp --progress
 
       - name: Extract bahn
         run: |
           Remove-Item -Recurse -Force "C:\bahn" -ErrorAction SilentlyContinue
-          Expand-Archive -Path $env:BAHN_ZIP -DestinationPath "C:\" -Force
-          Remove-Item $env:BAHN_ZIP -Force
+          Expand-Archive -Path "C:\bahn_temp\bahn.zip" -DestinationPath "C:\" -Force
+          Remove-Item -Recurse -Force "C:\bahn_temp"
 
       - name: Install Launcher
         run: |
@@ -109,31 +118,22 @@ jobs:
 
 
       # =================================
-      # 5️⃣ DOWNLOAD GAME DATA
+      # 6️⃣ DOWNLOAD GAME DATA VIA API
       # =================================
 
-      - name: Download PointBlank ID.zip
+      - name: Download PointBlank Game
         run: |
-          $output = "$env:TEMP\PB_GAME.zip"
-          python -m gdown --fuzzy 1mLMBZfpndqcdC_CtKkonwHlFD6gJlNM0 -O $output
-          echo "PB_ZIP=$output" >> $env:GITHUB_ENV
+          rclone copy gdrive:PB_GAME.zip C:\Zepetto --progress
 
-      - name: Validate Game Zip
-        run: |
-          $size = (Get-Item $env:PB_ZIP).Length
-          if ($size -lt 100000000) {
-              Write-Host "File tidak valid atau terlalu kecil!"
-              exit 1
-          }
 
       - name: Extract Game Data
         run: |
-          Expand-Archive -Path $env:PB_ZIP -DestinationPath "C:\Zepetto" -Force
-          Remove-Item $env:PB_ZIP -Force
+          Expand-Archive -Path "C:\Zepetto\PB_GAME.zip" -DestinationPath "C:\Zepetto" -Force
+          Remove-Item "C:\Zepetto\PB_GAME.zip" -Force
 
 
       # =================================
-      # 6️⃣ TWEAKS TERAKHIR
+      # 7️⃣ SUPER OPTIMIZATION (LAST)
       # =================================
 
       - name: SUPER OPTIMIZATION
@@ -154,7 +154,9 @@ jobs:
             Set-Service $svc -StartupType Disabled -ErrorAction SilentlyContinue
           }
 
-          reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v VisualFXSetting /t REG_DWORD /d 2 /f
+          reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" `
+            /v VisualFXSetting /t REG_DWORD /d 2 /f
+
           fsutil behavior set disablelastaccess 1
 
 
