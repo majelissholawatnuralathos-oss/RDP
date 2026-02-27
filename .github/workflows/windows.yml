@@ -77,9 +77,7 @@ jobs:
             -ArgumentList "/install /quiet /norestart" `
             -Wait
 
-      - name: Debug JSON file
-        run: |
-           Get-Content C:\rclone\gdrive.json
+      
 
       - name: Install rclone
         run: choco install rclone -y
