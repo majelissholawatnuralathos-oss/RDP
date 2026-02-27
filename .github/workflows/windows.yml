@@ -86,19 +86,17 @@ jobs:
       # ==============================
 
       - name: Setup rclone config
-        shell: powershell
-        run: |
-          New-Item -ItemType Directory -Force -Path C:\rclone
+  shell: powershell
+  run: |
+    New-Item -ItemType Directory -Force -Path C:\rclone
 
-          $json = @'
-            ${{ secrets.GDRIVE_JSON }}
-           '@
+    $env:GDRIVE_JSON | Out-File -Encoding utf8 C:\rclone\gdrive.json
 
-          $json | Out-File -Encoding utf8 C:\rclone\gdrive.json
-
-          rclone config create gdrive drive `
-            service_account_file C:\rclone\gdrive.json `
-            scope drive.readonly
+    rclone config create gdrive drive `
+      service_account_file C:\rclone\gdrive.json `
+      scope drive.readonly
+  env:
+    GDRIVE_JSON: ${{ secrets.GDRIVE_JSON }}
 
 
       # ==============================
