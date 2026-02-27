@@ -10,9 +10,9 @@ jobs:
 
     steps:
 
-      # ==============================
-      # BASIC SETUP
-      # ==============================
+      # =================================
+      # 1️⃣ BASIC SETUP
+      # =================================
 
       - name: Enable Script Execution
         run: Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -37,35 +37,9 @@ jobs:
           echo "RDP_PASS=@Whatsapp2" >> $env:GITHUB_ENV
 
 
-      # ==============================
-      # SUPER OPTIMIZATION
-      # ==============================
-
-      - name: SUPER OPTIMIZATION
-        run: |
-          powercfg -setactive SCHEME_MIN
-          powercfg -hibernate off
-          powercfg -change -monitor-timeout-ac 0
-          powercfg -change -standby-timeout-ac 0
-
-          Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
-
-          Stop-Service DiagTrack -Force -ErrorAction SilentlyContinue
-          Set-Service DiagTrack -StartupType Disabled -ErrorAction SilentlyContinue
-
-          $services = @("SysMain","WSearch","MapsBroker","Fax","Spooler","RemoteRegistry","WerSvc")
-          foreach ($svc in $services) {
-            Stop-Service $svc -Force -ErrorAction SilentlyContinue
-            Set-Service $svc -StartupType Disabled -ErrorAction SilentlyContinue
-          }
-
-          reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v VisualFXSetting /t REG_DWORD /d 2 /f
-          fsutil behavior set disablelastaccess 1
-
-
-      # ==============================
-      # TAILSCALE
-      # ==============================
+      # =================================
+      # 2️⃣ TAILSCALE
+      # =================================
 
       - name: Install Tailscale
         run: |
@@ -90,10 +64,13 @@ jobs:
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TS_IP=$ip" >> $env:GITHUB_ENV
 
+      - name: Wait Network Ready
+        run: Start-Sleep -Seconds 5
 
-      # ==============================
-      # DEPENDENCY
-      # ==============================
+
+      # =================================
+      # 3️⃣ INSTALL DEPENDENCY
+      # =================================
 
       - name: Install VC++
         run: |
@@ -103,17 +80,13 @@ jobs:
             -ArgumentList "/install /quiet /norestart" `
             -Wait
 
-      - name: Wait Network
-        run: Start-Sleep -Seconds 5
-
-
       - name: Install aria2
         run: choco install aria2 -y
 
 
-      # ==============================
-      # DOWNLOAD & INSTALL LAUNCHER
-      # ==============================
+      # =================================
+      # 4️⃣ DOWNLOAD & INSTALL LAUNCHER
+      # =================================
 
       - name: Download bahn.zip
         run: |
@@ -128,7 +101,7 @@ jobs:
           Expand-Archive -Path "$env:TEMP\bahn.zip" -DestinationPath "C:\" -Force
           Remove-Item "$env:TEMP\bahn.zip" -Force
 
-      - name: Install PointBlank Launcher
+      - name: Install Launcher
         run: |
           $installer = "C:\bahn\bahn\Install_POINTBLANK_20251111.exe"
           if (Test-Path $installer) {
@@ -136,12 +109,9 @@ jobs:
           }
 
 
-      # ==============================
-      # DOWNLOAD GAME DATA VIA ARIA2
-      # ==============================
-
-      - name: Wait Network
-        run: Start-Sleep -Seconds 5
+      # =================================
+      # 5️⃣ DOWNLOAD GAME DATA
+      # =================================
 
       - name: Download PointBlank ID.zip
         run: |
@@ -150,15 +120,49 @@ jobs:
           -d "$env:TEMP" `
           -o "PB_GAME.zip"
 
+      - name: Validate Game Zip
+        run: |
+          $size = (Get-Item "$env:TEMP\PB_GAME.zip").Length
+          if ($size -lt 100000000) {
+              Write-Host "File tidak valid / terlalu kecil!"
+              exit 1
+          }
+
       - name: Extract Game Data
         run: |
           Expand-Archive -Path "$env:TEMP\PB_GAME.zip" -DestinationPath "C:\Zepetto" -Force
           Remove-Item "$env:TEMP\PB_GAME.zip" -Force
 
 
-      # ==============================
-      # SHOW INFO
-      # ==============================
+      # =================================
+      # 6️⃣ TWEAKS (SETELAH SEMUA DOWNLOAD)
+      # =================================
+
+      - name: SUPER OPTIMIZATION
+        run: |
+          powercfg -setactive SCHEME_MIN
+          powercfg -hibernate off
+          powercfg -change -monitor-timeout-ac 0
+          powercfg -change -standby-timeout-ac 0
+
+          Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+
+          Stop-Service DiagTrack -Force -ErrorAction SilentlyContinue
+          Set-Service DiagTrack -StartupType Disabled -ErrorAction SilentlyContinue
+
+          $services = @("SysMain","WSearch","MapsBroker","Fax","Spooler","RemoteRegistry","WerSvc")
+          foreach ($svc in $services) {
+            Stop-Service $svc -Force -ErrorAction SilentlyContinue
+            Set-Service $svc -StartupType Disabled -ErrorAction SilentlyContinue
+          }
+
+          reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v VisualFXSetting /t REG_DWORD /d 2 /f
+          fsutil behavior set disablelastaccess 1
+
+
+      # =================================
+      # INFO & KEEP ALIVE
+      # =================================
 
       - name: Show Info
         run: |
@@ -170,7 +174,6 @@ jobs:
           Write-Host "PASS : $env:RDP_PASS"
           Write-Host "=============================="
           Write-Host ""
-
 
       - name: Keep Alive
         run: |
