@@ -86,10 +86,10 @@ jobs:
       # =================================
 
       - name: Setup rclone config
-       shell: powershell
-       env:
+        shell: powershell
+        env:
          GDRIVE_JSON_B64: ${{ secrets.GDRIVE_JSON_B64 }}
-       run: |
+        run: |
             New-Item -ItemType Directory -Force -Path C:\rclone
 
             $bytes = [Convert]::FromBase64String($env:GDRIVE_JSON_B64)
