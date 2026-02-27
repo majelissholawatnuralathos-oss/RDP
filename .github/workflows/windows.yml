@@ -103,6 +103,9 @@ jobs:
             -ArgumentList "/install /quiet /norestart" `
             -Wait
 
+      - name: Wait Network
+        run: Start-Sleep -Seconds 5
+
 
       - name: Install aria2
         run: choco install aria2 -y
@@ -115,7 +118,7 @@ jobs:
       - name: Download bahn.zip
         run: |
           aria2c -x 8 -s 8 `
-          "https://drive.google.com/uc?export=download&id=1YLPDhH0-fgaXihTshYgDCYFQ0c1CFbZp" `
+          "https://drive.usercontent.google.com/download?id=1YLPDhH0-fgaXihTshYgDCYFQ0c1CFbZp&export=download&confirm=t" `
           -d "$env:TEMP" `
           -o "bahn.zip"
 
@@ -140,7 +143,7 @@ jobs:
       - name: Download PointBlank ID.zip
         run: |
           aria2c -x 16 -s 16 `
-          "https://drive.google.com/uc?export=download&id=1mLMBZfpndqcdC_CtKkonwHlFD6gJlNM0" `
+          "https://drive.usercontent.google.com/download?id=1mLMBZfpndqcdC_CtKkonwHlFD6gJlNM0&export=download&confirm=t" `
           -d "$env:TEMP" `
           -o "PB_GAME.zip"
 
