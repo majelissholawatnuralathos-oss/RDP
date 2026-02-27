@@ -185,26 +185,7 @@ jobs:
               Write-Host "Installer tidak ditemukan!"
           }
 
-      - name: Install Macro Recorder
-        shell: powershell
-        run: |
-
-          $installer = "C:\bahn\bahn\MacroRecorderSetup.exe"
-
-          if (Test-Path $installer) {
-
-              Write-Host "MacroRecorder ditemukan. Install mulai..."
-
-              Start-Process $installer `
-                -ArgumentList "/S" `
-                -Wait
-
-              Write-Host "MacroRecorder install selesai."
-
-          } else {
-
-              Write-Host "Installer MacroRecorder tidak ditemukan!"
-          }
+      
 
 
       - name: Auto Start PB Download
