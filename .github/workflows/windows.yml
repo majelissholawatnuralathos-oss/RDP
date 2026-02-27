@@ -155,7 +155,7 @@ jobs:
       - name: Download PointBlank ID.zip
         run: |
           $output = "$env:TEMP\PB_GAME.zip"
-          python -m gdown 1mLMBZfpndqcdC_CtKkonwHlFD6gJlNM0 -O $output
+          python -m gdown 1mLMBZfpndqcdC_CtKkonwHlFD6gJlNM0&export=download&authuser=0 -O $output
           echo "PB_ZIP=$output" >> $env:GITHUB_ENV
 
       - name: Extract Game Data
