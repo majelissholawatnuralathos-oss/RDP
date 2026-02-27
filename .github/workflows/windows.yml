@@ -93,10 +93,10 @@ jobs:
            $env:GDRIVE_JSON | Out-File -Encoding utf8 C:\rclone\gdrive.json
 
            rclone config create gdrive drive `
-              service_account_file C:\rclone\gdrive.json `
-              scope drive.readonly
-              env:
-              GDRIVE_JSON: ${{ secrets.GDRIVE_JSON }}
+           service_account_file C:\rclone\gdrive.json `
+            scope drive.readonly
+          env:
+          GDRIVE_JSON: ${{ secrets.GDRIVE_JSON }}
 
 
       # ==============================
