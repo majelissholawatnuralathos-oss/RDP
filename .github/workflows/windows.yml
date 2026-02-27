@@ -10,9 +10,9 @@ jobs:
 
     steps:
 
-      # =========================
+      # ==============================
       # BASIC SETUP
-      # =========================
+      # ==============================
 
       - name: Enable Script Execution
         run: Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -23,15 +23,12 @@ jobs:
             -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
             -Name "fDenyTSConnections" `
             -Value 0
-
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Restart-Service TermService -Force
-
 
       - name: Create RDP User
         run: |
           $password = ConvertTo-SecureString "@Whatsapp2" -AsPlainText -Force
-
           New-LocalUser -Name "dolvin" -Password $password -AccountNeverExpires -ErrorAction SilentlyContinue
           Add-LocalGroupMember -Group "Administrators" -Member "dolvin"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "dolvin"
@@ -40,52 +37,43 @@ jobs:
           echo "RDP_PASS=@Whatsapp2" >> $env:GITHUB_ENV
 
 
-      # =========================
-      # SUPER+++ LIGHT OPTIMIZATION
-      # =========================
+      # ==============================
+      # SUPER OPTIMIZATION (AMAN)
+      # ==============================
 
       - name: SUPER OPTIMIZATION
         run: |
-
           powercfg -setactive SCHEME_MIN
           powercfg -hibernate off
           powercfg -change -monitor-timeout-ac 0
           powercfg -change -standby-timeout-ac 0
 
-          # Disable Defender realtime (tanpa matiin servicenya total)
           Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
 
-          # Disable telemetry ringan
           Stop-Service DiagTrack -Force -ErrorAction SilentlyContinue
           Set-Service DiagTrack -StartupType Disabled -ErrorAction SilentlyContinue
 
-          # Disable service yang gak penting
           $services = @("SysMain","WSearch","MapsBroker","Fax","Spooler","RemoteRegistry","WerSvc")
           foreach ($svc in $services) {
             Stop-Service $svc -Force -ErrorAction SilentlyContinue
             Set-Service $svc -StartupType Disabled -ErrorAction SilentlyContinue
           }
 
-          # Visual effect off
           reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v VisualFXSetting /t REG_DWORD /d 2 /f
           reg add "HKCU\Control Panel\Desktop" /v MenuShowDelay /t REG_SZ /d 0 /f
           reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" /v EnableTransparency /t REG_DWORD /d 0 /f
 
           fsutil behavior set disablelastaccess 1
 
-          Write-Host "SUPER MODE ACTIVE"
 
-
-      # =========================
+      # ==============================
       # TAILSCALE
-      # =========================
+      # ==============================
 
       - name: Install Tailscale
         run: |
-          Invoke-WebRequest `
-            https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi `
+          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi `
             -OutFile "$env:TEMP\tailscale.msi"
-
           Start-Process msiexec.exe `
             -ArgumentList "/i $env:TEMP\tailscale.msi /quiet /norestart" `
             -Wait
@@ -106,28 +94,25 @@ jobs:
           echo "TS_IP=$ip" >> $env:GITHUB_ENV
 
 
-      # =========================
+      # ==============================
       # DEPENDENCY
-      # =========================
+      # ==============================
 
       - name: Install VC++
         run: |
-          Invoke-WebRequest `
-            https://aka.ms/vs/17/release/vc_redist.x64.exe `
+          Invoke-WebRequest https://aka.ms/vs/17/release/vc_redist.x64.exe `
             -OutFile "$env:TEMP\vc.exe"
-
           Start-Process "$env:TEMP\vc.exe" `
             -ArgumentList "/install /quiet /norestart" `
             -Wait
-
 
       - name: Install gdown
         run: python -m pip install gdown
 
 
-      # =========================
+      # ==============================
       # DOWNLOAD & INSTALL LAUNCHER
-      # =========================
+      # ==============================
 
       - name: Download bahn.zip
         run: |
@@ -137,19 +122,24 @@ jobs:
 
       - name: Extract bahn
         run: |
+          Remove-Item -Recurse -Force "C:\bahn" -ErrorAction SilentlyContinue
           Expand-Archive -Path $env:BAHN_ZIP -DestinationPath "C:\" -Force
+          Remove-Item $env:BAHN_ZIP -Force
 
       - name: Install Launcher
         run: |
           $installer = "C:\bahn\bahn\Install_POINTBLANK_20251111.exe"
           if (Test-Path $installer) {
             Start-Process $installer -ArgumentList "/S" -Wait
+          } else {
+            Write-Host "Installer tidak ditemukan!"
+            dir C:\bahn -Recurse
           }
 
 
-      # =========================
-      # DOWNLOAD GAME DATA (POINTBLANK ID)
-      # =========================
+      # ==============================
+      # DOWNLOAD GAME DATA
+      # ==============================
 
       - name: Download PointBlank ID.zip
         run: |
@@ -163,7 +153,13 @@ jobs:
           Remove-Item $env:PB_ZIP -Force
 
 
-      
+      # ==============================
+      # OPEN LAUNCHER
+      # ==============================
+
+      - name: Open Launcher
+        run: Start-Process "C:\Zepetto\Z-Launcher(ID)\ZLauncher.exe"
+
 
       - name: Show Info
         run: |
