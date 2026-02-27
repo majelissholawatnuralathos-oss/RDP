@@ -141,7 +141,7 @@ jobs:
       # ==============================
 
       - name: Wait Network
-       run: Start-Sleep -Seconds 5
+        run: Start-Sleep -Seconds 5
 
       - name: Download PointBlank ID.zip
         run: |
