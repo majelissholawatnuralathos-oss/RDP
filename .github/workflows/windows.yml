@@ -10,9 +10,9 @@ jobs:
 
     steps:
 
-      # =================================
+      # ==============================
       # 1️⃣ BASIC SETUP
-      # =================================
+      # ==============================
 
       - name: Enable Script Execution
         run: Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -37,9 +37,9 @@ jobs:
           echo "RDP_PASS=@Whatsapp2" >> $env:GITHUB_ENV
 
 
-      # =================================
+      # ==============================
       # 2️⃣ TAILSCALE
-      # =================================
+      # ==============================
 
       - name: Install Tailscale
         run: |
@@ -65,9 +65,9 @@ jobs:
           echo "TS_IP=$ip" >> $env:GITHUB_ENV
 
 
-      # =================================
+      # ==============================
       # 3️⃣ INSTALL DEPENDENCY
-      # =================================
+      # ==============================
 
       - name: Install VC++
         run: |
@@ -77,38 +77,37 @@ jobs:
             -ArgumentList "/install /quiet /norestart" `
             -Wait
 
-      
-
       - name: Install rclone
         run: choco install rclone -y
 
 
-      # =================================
-      # 4️⃣ SETUP RCLONE (SERVICE ACCOUNT)
-      # =================================
+      # ==============================
+      # 4️⃣ SETUP RCLONE (SAFE JSON WRITE)
+      # ==============================
 
       - name: Setup rclone config
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force -Path C:\rclone
 
-           $json = @'
-            ${{ secrets.GDRIVE_JSON }}
-            '@
+          $json = @'
+${{ secrets.GDRIVE_JSON }}
+'@
 
-            $json | Out-File -Encoding utf8 C:\rclone\gdrive.json
+          $json | Out-File -Encoding utf8 C:\rclone\gdrive.json
 
-               rclone config create gdrive drive `
-               service_account_file C:\rclone\gdrive.json `
-              scope drive.readonly
+          rclone config create gdrive drive `
+            service_account_file C:\rclone\gdrive.json `
+            scope drive.readonly
 
 
-      # =================================
-      # 5️⃣ DOWNLOAD LAUNCHER (FROM DRIVE)
-      # =================================
+      # ==============================
+      # 5️⃣ DOWNLOAD LAUNCHER
+      # ==============================
 
       - name: Download bahn.zip
         run: |
+          New-Item -ItemType Directory -Force -Path C:\bahn_temp
           rclone copy gdrive:bahn.zip C:\bahn_temp --progress
 
       - name: Extract bahn
@@ -125,14 +124,14 @@ jobs:
           }
 
 
-      # =================================
-      # 6️⃣ DOWNLOAD GAME DATA VIA API
-      # =================================
+      # ==============================
+      # 6️⃣ DOWNLOAD GAME DATA
+      # ==============================
 
-      - name: Download PointBlank Game
+      - name: Download PB_GAME.zip
         run: |
+          New-Item -ItemType Directory -Force -Path C:\Zepetto
           rclone copy gdrive:PB_GAME.zip C:\Zepetto --progress
-
 
       - name: Extract Game Data
         run: |
@@ -140,9 +139,9 @@ jobs:
           Remove-Item "C:\Zepetto\PB_GAME.zip" -Force
 
 
-      # =================================
+      # ==============================
       # 7️⃣ SUPER OPTIMIZATION (LAST)
-      # =================================
+      # ==============================
 
       - name: SUPER OPTIMIZATION
         run: |
@@ -168,9 +167,9 @@ jobs:
           fsutil behavior set disablelastaccess 1
 
 
-      # =================================
+      # ==============================
       # INFO & KEEP ALIVE
-      # =================================
+      # ==============================
 
       - name: Show Info
         run: |
