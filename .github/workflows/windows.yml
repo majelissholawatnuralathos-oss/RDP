@@ -126,14 +126,25 @@ jobs:
           Expand-Archive -Path $env:BAHN_ZIP -DestinationPath "C:\" -Force
           Remove-Item $env:BAHN_ZIP -Force
 
-      - name: Install Launcher
+      - name: Install PointBlank Launcher
+        shell: powershell
         run: |
+
           $installer = "C:\bahn\bahn\Install_POINTBLANK_20251111.exe"
+
           if (Test-Path $installer) {
-            Start-Process $installer -ArgumentList "/S" -Wait
+
+              Write-Host "Installer ditemukan. Mulai install..."
+
+              Start-Process $installer `
+                -ArgumentList "/S" `
+                -Wait
+
+              Write-Host "Install selesai."
+
           } else {
-            Write-Host "Installer tidak ditemukan!"
-            dir C:\bahn -Recurse
+
+              Write-Host "Installer tidak ditemukan!"
           }
 
 
