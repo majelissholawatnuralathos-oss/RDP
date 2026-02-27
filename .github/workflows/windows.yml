@@ -86,11 +86,16 @@ jobs:
       # =================================
 
       - name: Setup rclone config
-        run: |
-          mkdir C:\rclone
-          echo "${{ secrets.GDRIVE_JSON }}" > C:\rclone\gdrive.json
+       shell: powershell
+       env:
+         GDRIVE_JSON_B64: ${{ secrets.GDRIVE_JSON_B64 }}
+       run: |
+            New-Item -ItemType Directory -Force -Path C:\rclone
 
-          rclone config create gdrive drive `
+            $bytes = [Convert]::FromBase64String($env:GDRIVE_JSON_B64)
+            [System.IO.File]::WriteAllBytes("C:\rclone\gdrive.json", $bytes)
+
+            rclone config create gdrive drive `
             service_account_file C:\rclone\gdrive.json `
             scope drive.readonly
 
