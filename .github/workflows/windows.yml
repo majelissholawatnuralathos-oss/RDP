@@ -91,8 +91,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path C:\rclone
 
           $json = @'
-${{ secrets.GDRIVE_JSON }}
-'@
+            ${{ secrets.GDRIVE_JSON }}
+           '@
 
           $json | Out-File -Encoding utf8 C:\rclone\gdrive.json
 
