@@ -77,6 +77,10 @@ jobs:
             -ArgumentList "/install /quiet /norestart" `
             -Wait
 
+      - name: Debug JSON file
+        run: |
+           Get-Content C:\rclone\gdrive.json
+
       - name: Install rclone
         run: choco install rclone -y
 
@@ -86,13 +90,19 @@ jobs:
       # =================================
 
       - name: Setup rclone config
+        shell: powershell
         run: |
-          mkdir C:\rclone
-          echo "${{ secrets.GDRIVE_JSON }}" > C:\rclone\gdrive.json
+          New-Item -ItemType Directory -Force -Path C:\rclone
 
-          rclone config create gdrive drive `
-            service_account_file C:\rclone\gdrive.json `
-            scope drive.readonly
+           $json = @'
+            ${{ secrets.GDRIVE_JSON }}
+            '@
+
+            $json | Out-File -Encoding utf8 C:\rclone\gdrive.json
+
+               rclone config create gdrive drive `
+               service_account_file C:\rclone\gdrive.json `
+              scope drive.readonly
 
 
       # =================================
