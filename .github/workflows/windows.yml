@@ -140,6 +140,9 @@ jobs:
       # DOWNLOAD GAME DATA VIA ARIA2
       # ==============================
 
+      - name: Wait Network
+       run: Start-Sleep -Seconds 5
+
       - name: Download PointBlank ID.zip
         run: |
           aria2c -x 16 -s 16 `
