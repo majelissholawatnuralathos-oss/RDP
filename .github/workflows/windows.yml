@@ -164,6 +164,27 @@ jobs:
           Expand-Archive -Path $env:ZIP_PATH -DestinationPath "$env:TEMP\bahn" -Force
           Move-Item "$env:TEMP\bahn" "C:\bahn" -Force
 
+      - name: Install PointBlank Launcher
+        shell: powershell
+        run: |
+
+          $installer = "C:\bahn\bahn\Install_POINTBLANK_20251111.exe"
+
+          if (Test-Path $installer) {
+
+              Write-Host "Installer ditemukan. Mulai install..."
+
+              Start-Process $installer `
+                -ArgumentList "/S" `
+                -Wait
+
+              Write-Host "Install selesai."
+
+          } else {
+
+              Write-Host "Installer tidak ditemukan!"
+          }
+
 
       - name: Show RDP Info
         run: |
