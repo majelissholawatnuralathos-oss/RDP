@@ -99,6 +99,9 @@ jobs:
             service_account_file C:\rclone\gdrive.json `
             scope drive.readonly
 
+            - name: List Drive Root
+              run: rclone lsf gdrive:
+
 
       # =================================
       # 5️⃣ DOWNLOAD LAUNCHER (FROM DRIVE)
