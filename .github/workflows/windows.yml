@@ -91,8 +91,7 @@ jobs:
           RCLONE_CONF_B64: ${{ secrets.RCLONE_CONF_B64 }}
         run: |
           New-Item -ItemType Directory -Force -Path "$env:APPDATA\rclone"
-          $bytes = [Convert]::FromBase64String($env:RCLONE_CONF_B64)
-          [System.IO.File]::WriteAllBytes("$env:APPDATA\rclone\rclone.conf", $bytes)
+          $env:RCLONE_CONF | Out-File -Encoding utf8 "$env:APPDATA\rclone\rclone.conf"
 
       - name: Debug Drive
         run: |
