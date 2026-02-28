@@ -93,6 +93,12 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$env:APPDATA\rclone"
           $env:RCLONE_CONF | Out-File -Encoding utf8 "$env:APPDATA\rclone\rclone.conf"
 
+      - name: Show rclone config in runner
+        run: |
+          Write-Host "----CONFIG START----"
+          Get-Content "$env:APPDATA\rclone\rclone.conf"
+          Write-Host "----CONFIG END----"    
+
       - name: Debug Drive
         run: |
               rclone lsf gdrive:
