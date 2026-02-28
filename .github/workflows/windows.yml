@@ -82,38 +82,30 @@ jobs:
 
 
       # =================================
-      # 4️⃣ SETUP RCLONE (SERVICE ACCOUNT)
+      # 4️⃣ SETUP RCLONE (OAUTH CONF)
       # =================================
 
       - name: Setup rclone config
         shell: powershell
         env:
-         GDRIVE_JSON_B64: ${{ secrets.GDRIVE_JSON_B64 }}
+          RCLONE_CONF_B64: ${{ secrets.RCLONE_CONF_B64 }}
         run: |
-            New-Item -ItemType Directory -Force -Path C:\rclone
-
-            $bytes = [Convert]::FromBase64String($env:GDRIVE_JSON_B64)
-            [System.IO.File]::WriteAllBytes("C:\rclone\gdrive.json", $bytes)
-
-            rclone config create gdrive drive `
-            service_account_file C:\rclone\gdrive.json `
-            scope drive.readonly
-
-            
-
-
-      # =================================
-      # 5️⃣ DOWNLOAD LAUNCHER (FROM DRIVE)
-      # =================================
-      
+          New-Item -ItemType Directory -Force -Path "$env:APPDATA\rclone"
+          $bytes = [Convert]::FromBase64String($env:RCLONE_CONF_B64)
+          [System.IO.File]::WriteAllBytes("$env:APPDATA\rclone\rclone.conf", $bytes)
 
       - name: Debug Drive
-        run: rclone lsf gdrive:PBFILES --recursive
+        run: rclone lsf gdrive:
 
-        
+
+      # =================================
+      # 5️⃣ DOWNLOAD LAUNCHER
+      # =================================
+
       - name: Download bahn.zip
         run: |
-          rclone copy gdrive:bahn.zip C:\bahn_temp --progress
+          New-Item -ItemType Directory -Force -Path C:\bahn_temp
+          rclone copy gdrive:PBFILES/bahn.zip C:\bahn_temp --progress
 
       - name: Extract bahn
         run: |
@@ -130,13 +122,13 @@ jobs:
 
 
       # =================================
-      # 6️⃣ DOWNLOAD GAME DATA VIA API
+      # 6️⃣ DOWNLOAD GAME DATA
       # =================================
 
-      - name: Download PointBlank Game
+      - name: Download PB_GAME.zip
         run: |
-          rclone copy gdrive:PB_GAME.zip C:\Zepetto --progress
-
+          New-Item -ItemType Directory -Force -Path C:\Zepetto
+          rclone copy gdrive:PBFILES/PB_GAME.zip C:\Zepetto --progress
 
       - name: Extract Game Data
         run: |
@@ -145,7 +137,7 @@ jobs:
 
 
       # =================================
-      # 7️⃣ SUPER OPTIMIZATION (LAST)
+      # 7️⃣ SUPER OPTIMIZATION
       # =================================
 
       - name: SUPER OPTIMIZATION
@@ -154,8 +146,6 @@ jobs:
           powercfg -hibernate off
           powercfg -change -monitor-timeout-ac 0
           powercfg -change -standby-timeout-ac 0
-
-          Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
 
           Stop-Service DiagTrack -Force -ErrorAction SilentlyContinue
           Set-Service DiagTrack -StartupType Disabled -ErrorAction SilentlyContinue
