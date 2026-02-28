@@ -145,8 +145,8 @@ jobs:
 
       - name: Extract Game Data
         run: |
-          Expand-Archive -Path "C:\Zepetto\PB_GAME.zip" -DestinationPath "C:\Zepetto" -Force
-          Remove-Item "C:\Zepetto\PB_GAME.zip" -Force
+          Expand-Archive -Path "C:\Zepetto\PointBlank ID.zip" -DestinationPath "C:\Zepetto" -Force
+          Remove-Item "C:\Zepetto\PointBlank ID.zip" -Force
 
 
       # =================================
