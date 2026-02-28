@@ -141,7 +141,7 @@ jobs:
       - name: Download PB_GAME.zip
         run: |
           New-Item -ItemType Directory -Force -Path C:\Zepetto
-          rclone copy gdrive:PBFILES/PointBlank ID.zip C:\Zepetto --progress
+          rclone copy "gdrive:PBFILES/PointBlank ID.zip" C:\Zepetto --progress
 
       - name: Extract Game Data
         run: |
