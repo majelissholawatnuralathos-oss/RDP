@@ -88,11 +88,18 @@ jobs:
       - name: Setup rclone config
         shell: powershell
         env:
-          RCLONE_CONF_B64: ${{ secrets.RCLONE_CONF_B64 }}
+            RCLONE_CONF_B64: ${{ secrets.RCLONE_CONF_B64 }}
         run: |
-          New-Item -ItemType Directory -Force -Path "$env:APPDATA\rclone"
-          $env:RCLONE_CONF | Out-File -Encoding utf8 "$env:APPDATA\rclone\rclone.conf"
+            New-Item -ItemType Directory -Force -Path "$env:APPDATA\rclone"
 
+            $clean = $env:RCLONE_CONF_B64.Trim()
+            $bytes = [Convert]::FromBase64String($clean)
+
+            [System.IO.File]::WriteAllBytes(
+            "$env:APPDATA\rclone\rclone.conf",
+            $bytes
+            )
+            
       - name: Show rclone config in runner
         run: |
           Write-Host "----CONFIG START----"
