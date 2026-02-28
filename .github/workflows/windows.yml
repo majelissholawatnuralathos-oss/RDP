@@ -109,6 +109,9 @@ jobs:
         run: |
          rclone lsf gdrive:
 
+         - name: Debug Drive
+           run: rclone lsf gdrive:PBFILES --recursive
+
         
       - name: Download bahn.zip
         run: |
