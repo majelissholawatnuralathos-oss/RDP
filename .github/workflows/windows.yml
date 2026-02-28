@@ -105,12 +105,10 @@ jobs:
       # =================================
       # 5️⃣ DOWNLOAD LAUNCHER (FROM DRIVE)
       # =================================
-      - name: List Drive Root
-        run: |
-         rclone lsf gdrive:
+      
 
-         - name: Debug Drive
-           run: rclone lsf gdrive:PBFILES --recursive
+      - name: Debug Drive
+        run: rclone lsf gdrive:PBFILES --recursive
 
         
       - name: Download bahn.zip
