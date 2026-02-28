@@ -95,7 +95,8 @@ jobs:
           [System.IO.File]::WriteAllBytes("$env:APPDATA\rclone\rclone.conf", $bytes)
 
       - name: Debug Drive
-        run: rclone lsf gdrive:
+        run: |
+              rclone lsf gdrive:
 
 
       # =================================
