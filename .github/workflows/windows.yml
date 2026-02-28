@@ -99,14 +99,17 @@ jobs:
             service_account_file C:\rclone\gdrive.json `
             scope drive.readonly
 
-            - name: List Drive Root
-              run: rclone lsf gdrive:
+            
 
 
       # =================================
       # 5️⃣ DOWNLOAD LAUNCHER (FROM DRIVE)
       # =================================
+      - name: List Drive Root
+        run: |
+         rclone lsf gdrive:
 
+        
       - name: Download bahn.zip
         run: |
           rclone copy gdrive:bahn.zip C:\bahn_temp --progress
