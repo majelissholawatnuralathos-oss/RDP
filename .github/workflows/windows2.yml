@@ -39,22 +39,6 @@ jobs:
           echo "RDP_USER=dolvin" >> $env:GITHUB_ENV
           echo "RDP_PASS=@Whatsapp2" >> $env:GITHUB_ENV
 
-      # Download WinUtil Source
-      - name: Download WinUtil
-        run: |
-          git clone --depth 1 https://github.com/ChrisTitusTech/winutil.git $env:TEMP\winutil
-
-      # Compile WinUtil
-      - name: Compile WinUtil
-        run: |
-          cd $env:TEMP\winutil
-          powershell -ExecutionPolicy Bypass -File Compile.ps1
-
-      # Run Tweaks Standard (Silent)
-      - name: Apply Windows Tweaks Standard
-        run: |
-          cd $env:TEMP\winutil
-          powershell -ExecutionPolicy Bypass -Command ".\winutil.ps1 -Preset Standard -Silent"
 
       # Safety: Re-enable RDP
       - name: Re-enable RDP Safety
