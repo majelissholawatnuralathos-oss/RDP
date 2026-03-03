@@ -71,27 +71,7 @@ jobs:
 
           echo "TS_IP=$ip" >> $env:GITHUB_ENV
 
-      # Install VC++ Redistributable
-      - name: Install VC++
-        run: |
-          $url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-          $out = "$env:TEMP\vc_redist.exe"
-
-          Invoke-WebRequest $url -OutFile $out
-
-          Start-Process $out `
-            -ArgumentList "/install /quiet /norestart" `
-            -Wait
-
-      # Install DirectX Runtime
-      - name: Install DirectX
-        run: |
-          $url = "https://download.microsoft.com/download/1/1/C/11C7E9C1-3A9A-4B9B-8C3D-3F6D5C0E4F93/directx_Jun2010_redist.exe"
-          $out = "$env:TEMP\directx.exe"
-
-          Invoke-WebRequest $url -OutFile $out
-
-          Start-Process $out -ArgumentList "/Q" -Wait
+   
 
       # Download Point Blank Installer
       - name: Download Point Blank
