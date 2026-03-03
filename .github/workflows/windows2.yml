@@ -73,13 +73,7 @@ jobs:
 
    
 
-      # Download Point Blank Installer
-      - name: Download Point Blank
-        run: |
-          $url = "https://pb.garena.co.id/download/PointBlankInstaller.exe"
-          $out = "$env:USERPROFILE\Desktop\PointBlankInstaller.exe"
-
-          Invoke-WebRequest $url -OutFile $out
+     
 
       # Show RDP Info
       - name: Show Connection Info
