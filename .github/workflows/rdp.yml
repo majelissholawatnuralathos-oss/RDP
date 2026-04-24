@@ -1,59 +1,61 @@
-name: Ubuntu GUI + XRDP + Tailscale (Remmina Ready)
+name: Headless CLI + Tailscale SSH
 
 on:
   workflow_dispatch:
 
 jobs:
-  desktop:
-    runs-on: ubuntu-22.04
+  setup:
+    runs-on: ubuntu-latest
     timeout-minutes: 360
 
     env:
-      USERNAME: "gui"
-      PASSWORD: "123"
-      TS_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
+      USERNAME: "dolvin"
+      PASSWORD: "whatsapp2"
+      TALESCALE_AUTH_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
 
     steps:
-      - name: Update System
-        run: |
-          sudo apt update -y
-          sudo apt upgrade -y
+      - name: Checkout Repo
+        uses: actions/checkout@v4
 
-      - name: Create User
+      - name: Create User & SSH Config
         run: |
+          # Buat user buat lu login
           sudo useradd -m -s /bin/bash "$USERNAME" || true
           echo "$USERNAME:$PASSWORD" | sudo chpasswd
-          sudo usermod -aG sudo "$USERNAME"
-
-      - name: Install Desktop (XFCE)
-        run: |
-          sudo apt install -y xfce4 xfce4-goodies
-          echo xfce4-session > ~/.xsession
-
-      - name: Install XRDP (RDP Server)
-        run: |
-          sudo apt install -y xrdp
-          sudo systemctl enable --now xrdp
-          sudo usermod -aG ssl-cert xrdp
+          sudo usermod -aG sudo "$USERNAME" || true
+          
+          # Pastikan SSH service jalan
+          sudo systemctl start ssh
 
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
-          sudo systemctl enable --now tailscaled
-          sudo tailscale up --authkey "${TS_KEY}" --ssh --hostname="github-gui-${{ github.run_id }}"
-          tailscale ip -4
+
+      - name: Start Tailscale (CLI Mode)
+        run: |
+          # WAJIB: Pakai userspace-networking karena GitHub Runner gak kasih akses TUN
+          sudo tailscaled --tun=userspace-networking --socks5-server=localhost:1055 & 
+          sleep 5
+          
+          # Login Tailscale + Aktifkan Tailscale SSH biar lu gampang masuknya
+          sudo tailscale up \
+            --authkey="${TALESCALE_AUTH_KEY}" \
+            --hostname=gh-runner-${{ github.run_id }} \
+            --ssh \
+            --accept-routes
 
       - name: Show Connection Info
         run: |
-          echo "✅ GUI Ready!"
-          echo "Username: $USERNAME"
-          echo "Password: $PASSWORD"
-          echo "🔌 Connect using Remmina or Windows RDP:"
-          echo "RDP Host (Tailscale): $(tailscale ip -4):3389"
-          echo "-------------"
-          tailscale status
+          echo "=========================================="
+          echo "Runner is READY!"
+          echo "Tailscale IP: $(tailscale ip -4)"
+          echo "SSH via Tailscale: ssh $USERNAME@$(tailscale ip -4)"
+          echo "=========================================="
 
-      - name: Keep Alive (Don't let runner stop)
+      - name: Keep Alive
         run: |
-          echo "🔥 RDP session online. Cancel workflow to stop."
-          while true; do sleep 120; done
+          # Loop biar gak mati selama 6 jam
+          while true; do
+            echo "Runner still running... $(date)"
+            sleep 300
+          done
