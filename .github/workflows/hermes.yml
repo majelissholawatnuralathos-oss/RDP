@@ -12,18 +12,15 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install gdown & FFmpeg
+      - name: Install FFmpeg
         run: |
-          python3 -m pip install --upgrade gdown
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Download Video from Google Drive
+      - name: Download Video from Dropbox
         run: |
-          # Kita hapus dulu lofi.mp4 bawaan repo biar gak error 'File already exists'
-          rm -f lofi.mp4
-          # Pakai ID video kamu yang tadi
-          python3 -m gdown 14BscG_Lp_qQkVqJNfFN5W9wqCO_PRRxj -O lofi.mp4
+          # wget jauh lebih cepat dan simpel untuk link direct Dropbox
+          wget -O lofi.mp4 "https://www.dropbox.com/scl/fi/9excxmzw9cb9e0q3ejzh9/lofi.mp4?rlkey=j87n5tn8kxs901p4nrqqv6on7&st=0itgzylv&dl=1"
 
       - name: Start Looping Stream
         run: |
