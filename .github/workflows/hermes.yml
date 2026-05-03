@@ -1,0 +1,29 @@
+name: Auto Stream Engine
+
+on:
+  workflow_dispatch: # Ini biar bisa ditendang sama Agent Local kamu
+  schedule:
+    - cron: '0 */6 * * *' # Backup kalau agent local kamu mati lampu
+
+jobs:
+  live_stream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ambil Kode dari Repo
+        uses: actions/checkout@v4
+
+      - name: Install Tukang Streaming (FFmpeg)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Mulai Streaming ke YouTube
+        env:
+          # Pastikan kamu sudah isi YOUTUBE_STREAM_KEY di GitHub Secrets
+          STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
+        run: |
+          # Perintah FFmpeg sakti buat looping selamanya
+          ffmpeg -re -stream_loop -1 -i lofi.mp4 \
+          -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k \
+          -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -ar 44100 \
+          -f flv "rtmps://a.rtmps.youtube.com:443/live2/$STREAM_KEY"
