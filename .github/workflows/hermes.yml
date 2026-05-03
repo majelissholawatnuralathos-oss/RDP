@@ -14,9 +14,11 @@ jobs:
 
       - name: Download Video from Google Drive
         run: |
-          # Menggunakan gdown untuk bypass limit download Google Drive
-          pip install gdown
-          gdown --id 14BscG_Lp_qQkVqJNfFN5W9wqCO_PRRxj -O lofi.mp4
+          # Install gdown
+          python3 -m pip install --upgrade gdown
+          
+          # Pakai python3 -m gdown biar pasti terpanggil, dan hapus --id
+          python3 -m gdown 14BscG_Lp_qQkVqJNfFN5W9wqCO_PRRxj -O lofi.mp4
 
       - name: Install FFmpeg
         run: |
