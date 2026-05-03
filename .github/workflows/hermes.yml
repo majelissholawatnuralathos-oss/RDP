@@ -11,17 +11,22 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          lfs: true # WAJIB TRUE karena videomu pakai Git LFS
 
-      - name: Install FFmpeg
+      - name: Install gdown & FFmpeg
         run: |
+          python3 -m pip install --upgrade gdown
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
+      - name: Download Video from Google Drive
+        run: |
+          # Kita hapus dulu lofi.mp4 bawaan repo biar gak error 'File already exists'
+          rm -f lofi.mp4
+          # Pakai ID video kamu yang tadi
+          python3 -m gdown 14BscG_Lp_qQkVqJNfFN5W9wqCO_PRRxj -O lofi.mp4
+
       - name: Start Looping Stream
         run: |
-          # FFmpeg langsung baca lofi.mp4 yang ada di repo hasil git push tadi
           ffmpeg -re -stream_loop -1 -i lofi.mp4 \
           -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k \
           -pix_fmt yuv420p -g 120 -c:a aac -b:a 128k -ar 44100 \
