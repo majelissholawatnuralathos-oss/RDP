@@ -23,11 +23,10 @@ jobs:
           sudo apt-get install -y ffmpeg
 
       - name: Start Looping Stream
-        env:
-          YOUTUBE_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
         run: |
-          # Perhatikan rtmp:// (TANPA 's') dan TANPA port :443
+          # Kita panggil langsung secret-nya di baris command
+          # Pakai rtmp:// (Tanpa S)
           ffmpeg -re -stream_loop -1 -i lofi.mp4 \
           -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k \
           -pix_fmt yuv420p -g 120 -c:a aac -b:a 128k -ar 44100 \
-          -f flv "rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_KEY"
+          -f flv "rtmp://a.rtmp.youtube.com/live2/${{ secrets.YOUTUBE_STREAM_KEY }}"
