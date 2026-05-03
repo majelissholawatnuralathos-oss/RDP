@@ -14,10 +14,7 @@ jobs:
 
       - name: Download Video from Google Drive
         run: |
-          # Install gdown
           python3 -m pip install --upgrade gdown
-          
-          # Pakai python3 -m gdown biar pasti terpanggil, dan hapus --id
           python3 -m gdown 14BscG_Lp_qQkVqJNfFN5W9wqCO_PRRxj -O lofi.mp4
 
       - name: Install FFmpeg
@@ -27,10 +24,11 @@ jobs:
 
       - name: Start Looping Stream
         env:
+          # Manggil secret yang sudah kamu buat di list tadi
           YOUTUBE_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
         run: |
-          # Jika file hasil download ada, gas streaming
+          # Pakai RTMP standar biar gak kena error TLS/SSL
           ffmpeg -re -stream_loop -1 -i lofi.mp4 \
           -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k \
-          -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -ar 44100 \
-          -f flv "rtmps://a.rtmps.youtube.com:443/live2/$YOUTUBE_KEY"
+          -pix_fmt yuv420p -g 120 -c:a aac -b:a 128k -ar 44100 \
+          -f flv "rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_KEY"
