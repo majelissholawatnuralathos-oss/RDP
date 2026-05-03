@@ -25,6 +25,6 @@ jobs:
       - name: Start Looping Stream
         run: |
           ffmpeg -re -stream_loop -1 -i lofi.mp4 \
-          -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k \
+          -c:v libx264 -preset veryfast -b:v 6000k -maxrate 6800k -bufsize 12000k \
           -pix_fmt yuv420p -g 120 -c:a aac -b:a 128k -ar 44100 \
           -f flv "rtmp://a.rtmp.youtube.com/live2/${{ secrets.YOUTUBE_STREAM_KEY }}"
