@@ -24,8 +24,7 @@ jobs:
 
       - name: Start Looping Stream
         run: |
-          # Kita panggil langsung secret-nya di baris command
-          # Pakai rtmp:// (Tanpa S)
+          # Langsung panggil secret di dalam string URL
           ffmpeg -re -stream_loop -1 -i lofi.mp4 \
           -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k \
           -pix_fmt yuv420p -g 120 -c:a aac -b:a 128k -ar 44100 \
