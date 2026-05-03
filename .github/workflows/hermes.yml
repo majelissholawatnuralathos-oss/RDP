@@ -24,10 +24,9 @@ jobs:
 
       - name: Start Looping Stream
         env:
-          # Manggil secret yang sudah kamu buat di list tadi
           YOUTUBE_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
         run: |
-          # Pakai RTMP standar biar gak kena error TLS/SSL
+          # Perhatikan rtmp:// (TANPA 's') dan TANPA port :443
           ffmpeg -re -stream_loop -1 -i lofi.mp4 \
           -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k \
           -pix_fmt yuv420p -g 120 -c:a aac -b:a 128k -ar 44100 \
