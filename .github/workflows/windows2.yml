@@ -1,116 +1,33 @@
-name: RDP2
+name: YouTube Bot Runner
 
 on:
   workflow_dispatch:
 
 jobs:
-  rdp-job:
-    runs-on: windows-2025-vs2026
+  bot-job:
+    runs-on: ubuntu-latest  # LO PAKE UBUNTU, BUKAN WINDOWS
     timeout-minutes: 360
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      # Enable PowerShell script execution
-      - name: Enable Script Execution
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
         run: |
-          Set-ExecutionPolicy Bypass -Scope Process -Force
+          pip install requests fake_useragent
+          pip install fake_useragent playwright
+          playwright install chromium
 
-      # Enable RDP
-      - name: Enable RDP
+
+      
+      - name: Keep alive
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-            -Name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Restart-Service TermService -Force
-
-      # Create RDP User
-      - name: Create RDP User
-        run: |
-          $password = ConvertTo-SecureString "@Whatsapp2" -AsPlainText -Force
-
-          New-LocalUser -Name "dolvin" `
-            -Password $password `
-            -AccountNeverExpires `
-            -ErrorAction SilentlyContinue
-
-          Add-LocalGroupMember -Group "Administrators" -Member "dolvin" -ErrorAction SilentlyContinue
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "dolvin" -ErrorAction SilentlyContinue
-
-          echo "RDP_USER=dolvin" >> $env:GITHUB_ENV
-          echo "RDP_PASS=@Whatsapp2" >> $env:GITHUB_ENV
-
-
-      # Safety: Re-enable RDP
-      - name: Re-enable RDP Safety
-        run: |
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Restart-Service TermService -Force
-
-      # Install Tailscale
-      - name: Install Tailscale
-        run: |
-          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
-          $out = "$env:TEMP\tailscale.msi"
-
-          Invoke-WebRequest -Uri $url -OutFile $out
-
-          Start-Process msiexec.exe `
-            -ArgumentList "/i $out /quiet /norestart" `
-            -Wait
-
-      # Connect Tailscale using Authkey
-      - name: Connect Tailscale
-        run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
-            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} `
-            --hostname=gh-runner-${{ github.run_id }} `
-            --accept-routes `
-            --accept-dns=false
-
-          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-
-          echo "TS_IP=$ip" >> $env:GITHUB_ENV
-
-   
-
-     
-
-      # Show RDP Info
-      - name: Show Connection Info
-        run: |
-          Write-Host ""
-          Write-Host "=============================="
-          Write-Host "RDP READY"
-          Write-Host "IP       : $env:TS_IP"
-          Write-Host "USER     : $env:RDP_USER"
-          Write-Host "PASS     : $env:RDP_PASS"
-          Write-Host "=============================="
-
-      # Step Baru: Buka Chrome di Atas Akun System & Tembus ke Desktop User
-      - name: Force Open YouTube via System
-        run: |
-          $Url = "https://www.youtube.com/watch?v=Tt9uSpzDCZ0"
-          
-          # Gunakan Task Scheduler tapi set agar dijalankan di grup 'Users' 
-          # agar bisa berinteraksi dengan desktop mana pun yang aktif.
-          $Action = New-ScheduledTaskAction -Execute "C:\Program Files\Google\Chrome\Application\chrome.exe" `
-                    -Argument "--no-first-run --autoplay-policy=no-user-gesture-required --start-maximized $Url"
-          
-          # Kita set Principal agar pake akun SYSTEM tapi punya 'Highest' privileges
-          $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-          
-          # Trigger diganti: bukan cuma logon, tapi dijalankan SEKARANG
-          Register-ScheduledTask -TaskName "SystemWatchYT" -Action $Action -Principal $Principal -Force
-          
-          Start-ScheduledTask -TaskName "SystemWatchYT"
-          Write-Host "Chrome dijalankan via SYSTEM. Begitu kamu RDP, Chrome harusnya sudah muter."
-
-      - name: Keep Alive
-        run: |
-          while ($true) {
-            # Karena SYSTEM kadang 'invisible', kita paksa start tiap 10 menit 
-            # buat mastiin videonya tetep jalan/kebuka kalo ketutup.
-            Start-ScheduledTask -TaskName "SystemWatchYT"
-            Write-Host "[$(Get-Date)] Memastikan Chrome tetap aktif di background..."
-            Start-Sleep -Seconds 600
-          }
+          while true; do
+            echo "[$(date)] Bot masih jalan..."
+            sleep 300
+          done
