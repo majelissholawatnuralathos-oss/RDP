@@ -1,64 +1,46 @@
-name: RDP Windows
+name: RDP Windows Tailscale
 
 on: 
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: windows-latest # Ganti ke Windows
+    runs-on: windows-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Tailscale
-        uses: tailscale/github-action@v2
-        with:
-          oauth-client-id: ${{ secrets.TS_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_CLIENT_SECRET }}
-          tags: tag:ci
-
-      - name: Nonton via Chrome Windows
-        shell: pwsh # Pakai PowerShell biar stabil di Windows
+      - name: Install Tailscale on Windows
+        shell: pwsh
         run: |
-          # 1. Install Playwright
-          npm install playwright
+          echo "Downloading Tailscale..."
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" -OutFile "tailscale-setup.exe"
           
-          # 2. Install browser (di Windows biasanya lebih cepat)
-          npx playwright install chromium
+          echo "Installing Tailscale..."
+          Start-Process -FilePath ".\tailscale-setup.exe" -ArgumentList "/quiet" -Wait
           
-          # 3. Jalankan script nonton
-          node -e @"
-          const { chromium } = require('playwright');
-          (async () => {
-            try {
-              // Launch browser (headless: true karena GitHub gak punya monitor asli)
-              const browser = await chromium.launch({ headless: true });
-              const context = await browser.newContext({
-                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-              });
-              const page = await context.newPage();
-              
-              console.log('Membuka YouTube di Windows...');
-              await page.goto('https://www.youtube.com/watch?v=Tt9uSpzDCZ0', { 
-                waitUntil: 'networkidle', 
-                timeout: 90000 
-              });
-              
-              // Coba klik play kalau perlu
-              try { 
-                await page.click('.ytp-play-button', { timeout: 10000 });
-                console.log('Video dimainkan.');
-              } catch (e) {
-                console.log('Mungkin sudah autoplay.');
-              }
+          echo "Connecting to Tailscale..."
+          # Gunakan OAuth Secret kamu di sini
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TS_CLIENT_SECRET }} --hostname=github-windows-runner --accept-routes
+          
+          echo "Tailscale Connected!"
 
-              console.log('Menonton selama 90 detik...');
-              await new Promise(r => setTimeout(r, 90000));
-              
-              console.log('Selesai pancing traffic dari Ciputat (Windows Node).');
-              await browser.close();
-            } catch (err) {
-              console.error('Error nih:', err);
-              process.exit(1);
-            }
-          })();
+      - name: Nonton via PowerShell Chrome
+        shell: pwsh
+        run: |
+          $url = "https://www.youtube.com/watch?v=Tt9uSpzDCZ0"
+          
+          echo "Membuka Chrome untuk streaming..."
+          $process = Start-Process "chrome.exe" -ArgumentList @(
+            "--headless",
+            "--disable-gpu",
+            "--autoplay-policy=no-user-gesture-required",
+            "--no-first-run",
+            $url
+          ) -PassThru
+          
+          echo "Menonton selama 90 detik beneran lewat Tailscale..."
+          Start-Sleep -Seconds 90
+          
+          echo "Durasi 1.30 menit selesai. Menutup Chrome."
+          Stop-Process -Id $process.Id -Force
