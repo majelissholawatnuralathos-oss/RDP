@@ -1,61 +1,25 @@
-name: Headless CLI + Tailscale SSH
+name: RDP
 
-on:
-  workflow_dispatch:
+on: 
+  workflow_dispatch: # Biar bisa kamu jalankan manual kapan saja
 
 jobs:
-  setup:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
-
-    env:
-      USERNAME: "dolvin"
-      PASSWORD: "whatsapp2"
-      TALESCALE_AUTH_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
-
     steps:
-      - name: Checkout Repo
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Create User & SSH Config
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }} # Pastikan secret ini sudah kamu isi di setting repo
+
+      - name: Nonton Kilat via Tailscale
         run: |
-          # Buat user buat lu login
-          sudo useradd -m -s /bin/bash "$USERNAME" || true
-          echo "$USERNAME:$PASSWORD" | sudo chpasswd
-          sudo usermod -aG sudo "$USERNAME" || true
+          # Mengakses live stream selama 90 detik (1.30 menit)
+          # Menggunakan User-Agent Chrome terbaru agar terdeteksi organik
+          timeout 90s curl -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+          "https://www.youtube.com/watch?v=Tt9uSpzDCZ0" || true
           
-          # Pastikan SSH service jalan
-          sudo systemctl start ssh
-
-      - name: Install Tailscale
-        run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
-
-      - name: Start Tailscale (CLI Mode)
-        run: |
-          # WAJIB: Pakai userspace-networking karena GitHub Runner gak kasih akses TUN
-          sudo tailscaled --tun=userspace-networking --socks5-server=localhost:1055 & 
-          sleep 5
-          
-          # Login Tailscale + Aktifkan Tailscale SSH biar lu gampang masuknya
-          sudo tailscale up \
-            --authkey="${TALESCALE_AUTH_KEY}" \
-            --hostname=gh-runner-${{ github.run_id }} \
-            --ssh \
-            --accept-routes
-
-      - name: Show Connection Info
-        run: |
-          echo "=========================================="
-          echo "Runner is READY!"
-          echo "Tailscale IP: $(tailscale ip -4)"
-          echo "SSH via Tailscale: ssh $USERNAME@$(tailscale ip -4)"
-          echo "=========================================="
-
-      - name: Keep Alive
-        run: |
-          # Loop biar gak mati selama 6 jam
-          while true; do
-            echo "Runner still running... $(date)"
-            sleep 300
-          done
+          echo "Selesai memberikan pancingan traffic 1.30 menit dari Ciputat."
