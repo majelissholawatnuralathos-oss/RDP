@@ -19,22 +19,42 @@ jobs:
           
       - name: Nonton Beneran via Playwright
         run: |
-          # Install browser Chromium
-          npx playwright install chromium
+          # 1. Install library Playwright-nya dulu
+          npm install playwright
           
-          # Script sakti untuk buka YouTube dan tunggu 90 detik
+          # 2. Install browser Chromium (beserta dependensi sistemnya)
+          npx playwright install chromium --with-deps
+          
+          # 3. Jalankan script nontonnya
           node -e "
           const { chromium } = require('playwright');
           (async () => {
-            const browser = await chromium.launch();
-            const page = await browser.newPage();
-            // Pakai User-Agent asli biar nggak disangka bot
-            await page.setExtraHTTPHeaders({ 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' });
-            
-            console.log('Membuka video...');
-            await page.goto('https://www.youtube.com/watch?v=Tt9uSpzDCZ0');
-            
-            console.log('Menonton selama 90 detik...');
+            try {
+              const browser = await chromium.launch({ headless: true });
+              const page = await browser.newPage();
+              
+              // Set User-Agent biar gak dikira bot amatir
+              await page.setExtraHTTPHeaders({ 
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' 
+              });
+              
+              console.log('Membuka video YouTube...');
+              await page.goto('https://www.youtube.com/watch?v=Tt9uSpzDCZ0', { waitUntil: 'networkidle' });
+              
+              // Klik play jika perlu (opsional, biasanya auto-play)
+              try { await page.click('.ytp-play-button', { timeout: 5000 }); } catch (e) {}
+
+              console.log('Menonton selama 90 detik...');
+              await new Promise(resolve => setTimeout(resolve, 90000)); 
+              
+              console.log('Selesai pancing traffic 1.30 menit dari Ciputat.');
+              await browser.close();
+            } catch (err) {
+              console.error('Ada masalah:', err);
+              process.exit(1);
+            }
+          })();
+          "
             await page.waitForTimeout(90000); 
             
             console.log('Selesai pancing traffic dari Ciputat.');
