@@ -11,7 +11,7 @@ jobs:
     env:
       USERNAME: "dolvin"
       PASSWORD: "whatsapp2"
-      TALESCALE_AUTH_KEY: ${{ secrets.TALESCALE_AUTH_KEY }}
+      TALESCALE_AUTH_KEY: ${{ secrets.TAILESCALE_AUTH_KEY }}
 
     steps:
       - name: Checkout Repo
@@ -21,7 +21,14 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt upgrade -y
-    
+          
+      - name: Install dependencies
+     
+        run: |
+              pip install requests fake_useragent
+              pip install fake_useragent playwright
+              playwright install chromium
+
           
 
           
