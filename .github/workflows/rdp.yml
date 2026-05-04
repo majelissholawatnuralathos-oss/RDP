@@ -13,8 +13,9 @@ jobs:
       - name: Setup Tailscale
         uses: tailscale/github-action@v2
         with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }} # Pastikan secret ini sudah kamu isi di setting repo
-
+          oauth-client-id: ${{ secrets.TS_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_CLIENT_SECRET }}
+          tags: tag:ci # Pastikan kamu sudah buat tag ini di Tailscale ACL
       - name: Nonton Kilat via Tailscale
         run: |
           # Mengakses live stream selama 90 detik (1.30 menit)
