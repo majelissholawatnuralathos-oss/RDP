@@ -8,6 +8,7 @@ on:
 jobs:
   stream:
     runs-on: ubuntu-latest
+    timeout-minutes: 347
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
