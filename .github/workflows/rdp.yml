@@ -16,11 +16,28 @@ jobs:
           oauth-client-id: ${{ secrets.TS_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_CLIENT_SECRET }}
           tags: tag:ci # Pastikan kamu sudah buat tag ini di Tailscale ACL
-      - name: Nonton Kilat via Tailscale
-        run: |
-          # Mengakses live stream selama 90 detik (1.30 menit)
-          # Menggunakan User-Agent Chrome terbaru agar terdeteksi organik
-          timeout 90s curl -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
-          "https://www.youtube.com/watch?v=Tt9uSpzDCZ0" || true
           
-          echo "Selesai memberikan pancingan traffic 1.30 menit dari Ciputat."
+      - name: Nonton Beneran via Playwright
+        run: |
+          # Install browser Chromium
+          npx playwright install chromium
+          
+          # Script sakti untuk buka YouTube dan tunggu 90 detik
+          node -e "
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch();
+            const page = await browser.newPage();
+            // Pakai User-Agent asli biar nggak disangka bot
+            await page.setExtraHTTPHeaders({ 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' });
+            
+            console.log('Membuka video...');
+            await page.goto('https://www.youtube.com/watch?v=Tt9uSpzDCZ0');
+            
+            console.log('Menonton selama 90 detik...');
+            await page.waitForTimeout(90000); 
+            
+            console.log('Selesai pancing traffic dari Ciputat.');
+            await browser.close();
+          })();
+          "
