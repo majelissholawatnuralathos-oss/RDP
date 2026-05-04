@@ -1,52 +1,31 @@
-name: RDP Windows Tailscale
+name: Streaming Engine
 
-on: 
+on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
 
 jobs:
-  build:
-    runs-on: windows-latest
+  stream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 347
     steps:
-      - name: Checkout Repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install & Connect Tailscale
-        shell: pwsh
+      - name: Install FFmpeg
         run: |
-          echo "Downloading Tailscale..."
-          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" -OutFile "tailscale-setup.exe"
-          
-          echo "Installing Tailscale..."
-          Start-Process -FilePath ".\tailscale-setup.exe" -ArgumentList "/quiet" -Wait
-          
-          echo "Starting Tailscale Service..."
-          # Pastikan service tailscale jalan di Windows
-          Start-Service -Name "Tailscale" -ErrorAction SilentlyContinue
-          
-          echo "Connecting with Auth Key..."
-          # Menggunakan Auth Key dan wajib menyertakan tag jika key tersebut didefinisikan sebagai tag-owner
-          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=github-windows-runner --accept-routes --advertise-tags=tag:ci
-          
-          echo "Status Tailscale:"
-          & "C:\Program Files\Tailscale\tailscale.exe" status
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
-      - name: Nonton via PowerShell Chrome
-        shell: pwsh
+      - name: Download Video from Dropbox
         run: |
-          $url = "https://www.youtube.com/watch?v=Tt9uSpzDCZ0"
-          
-          echo "Membuka Chrome (Headless)..."
-          $process = Start-Process "chrome.exe" -ArgumentList @(
-            "--headless",
-            "--disable-gpu",
-            "--autoplay-policy=no-user-gesture-required",
-            "--no-first-run",
-            $url
-          ) -PassThru
-          
-          echo "Menonton streaming selama 90 detik..."
-          Start-Sleep -Seconds 90
-          
-          echo "Selesai 1.30 menit. Menutup proses Chrome."
-          Stop-Process -Id $process.Id -Force
-          echo "Eksekusi dari Ciputat selesai."
+          # wget jauh lebih cepat dan simpel untuk link direct Dropbox
+          wget -O lofi2.mp4 "https://www.dropbox.com/scl/fi/ga51lj11h87fj932orbby/lofi2.mp4?rlkey=96hs5ggnp3dvh7k1wh69ju086&st=klbvmzyn&dl=1"
+
+      - name: Start Looping Stream
+        run: |
+          ffmpeg -re -stream_loop -1 -i lofi2.mp4 \
+          -c:v libx264 -preset veryfast -b:v 6000k -maxrate 6800k -bufsize 12000k \
+          -pix_fmt yuv420p -g 120 -c:a aac -b:a 128k -ar 44100 \
+          -f flv "rtmp://a.rtmp.youtube.com/live2/${{ secrets.YOUTUBE_STREAMM_KEY }}"
