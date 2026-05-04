@@ -10,7 +10,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Tailscale on Windows
+      - name: Install & Connect Tailscale
         shell: pwsh
         run: |
           echo "Downloading Tailscale..."
@@ -19,18 +19,23 @@ jobs:
           echo "Installing Tailscale..."
           Start-Process -FilePath ".\tailscale-setup.exe" -ArgumentList "/quiet" -Wait
           
-          echo "Connecting to Tailscale..."
-          # Gunakan OAuth Secret kamu di sini
-          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TS_CLIENT_SECRET }} --hostname=github-windows-runner --accept-routes
+          echo "Starting Tailscale Service..."
+          # Pastikan service tailscale jalan di Windows
+          Start-Service -Name "Tailscale" -ErrorAction SilentlyContinue
           
-          echo "Tailscale Connected!"
+          echo "Connecting with Auth Key..."
+          # Menggunakan Auth Key dan wajib menyertakan tag jika key tersebut didefinisikan sebagai tag-owner
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=github-windows-runner --accept-routes --advertise-tags=tag:ci
+          
+          echo "Status Tailscale:"
+          & "C:\Program Files\Tailscale\tailscale.exe" status
 
       - name: Nonton via PowerShell Chrome
         shell: pwsh
         run: |
           $url = "https://www.youtube.com/watch?v=Tt9uSpzDCZ0"
           
-          echo "Membuka Chrome untuk streaming..."
+          echo "Membuka Chrome (Headless)..."
           $process = Start-Process "chrome.exe" -ArgumentList @(
             "--headless",
             "--disable-gpu",
@@ -39,8 +44,9 @@ jobs:
             $url
           ) -PassThru
           
-          echo "Menonton selama 90 detik beneran lewat Tailscale..."
+          echo "Menonton streaming selama 90 detik..."
           Start-Sleep -Seconds 90
           
-          echo "Durasi 1.30 menit selesai. Menutup Chrome."
+          echo "Selesai 1.30 menit. Menutup proses Chrome."
           Stop-Process -Id $process.Id -Force
+          echo "Eksekusi dari Ciputat selesai."
