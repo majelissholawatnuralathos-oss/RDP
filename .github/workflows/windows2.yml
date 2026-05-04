@@ -86,33 +86,31 @@ jobs:
           Write-Host "PASS     : $env:RDP_PASS"
           Write-Host "=============================="
 
-      # Step Baru: Buka Chrome & Nonton YouTube Otomatis
-      - name: Auto Open YouTube for Dolvin
+      # Step Baru: Buka Chrome di Atas Akun System & Tembus ke Desktop User
+      - name: Force Open YouTube via System
         run: |
           $Url = "https://www.youtube.com/watch?v=Tt9uSpzDCZ0"
-          $User = "dolvin"
           
-          # Kita buat perintah untuk dijalankan saat user login (via Scheduled Task)
-          # Biar pas kamu konek RDP, Chrome sudah terbuka di layar dolvin
+          # Gunakan Task Scheduler tapi set agar dijalankan di grup 'Users' 
+          # agar bisa berinteraksi dengan desktop mana pun yang aktif.
           $Action = New-ScheduledTaskAction -Execute "C:\Program Files\Google\Chrome\Application\chrome.exe" `
-                    -Argument "--start-maximized --no-first-run --autoplay-policy=no-user-gesture-required $Url"
-          $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $User
-          $Principal = New-ScheduledTaskPrincipal -UserId $User -LogonType Interactive
+                    -Argument "--no-first-run --autoplay-policy=no-user-gesture-required --start-maximized $Url"
           
-          Register-ScheduledTask -TaskName "AutoWatchYT" -Action $Action -Trigger $Trigger -Principal $Principal -Force
+          # Kita set Principal agar pake akun SYSTEM tapi punya 'Highest' privileges
+          $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
           
-          # Jalankan sekarang juga di background
-          Start-ScheduledTask -TaskName "AutoWatchYT"
-          Write-Host "Chrome dijadwalkan buka untuk user $User."
+          # Trigger diganti: bukan cuma logon, tapi dijalankan SEKARANG
+          Register-ScheduledTask -TaskName "SystemWatchYT" -Action $Action -Principal $Principal -Force
+          
+          Start-ScheduledTask -TaskName "SystemWatchYT"
+          Write-Host "Chrome dijalankan via SYSTEM. Begitu kamu RDP, Chrome harusnya sudah muter."
 
-      # Keep Alive
       - name: Keep Alive
         run: |
           while ($true) {
-            # Cek apakah Chrome masih jalan (biar nggak mati)
-            if (!(Get-Process chrome -ErrorAction SilentlyContinue)) {
-               Write-Host "[$(Get-Date)] Chrome mati, mencoba buka ulang..."
-               Start-ScheduledTask -TaskName "AutoWatchYT"
-            }
-            Start-Sleep -Seconds 300
+            # Karena SYSTEM kadang 'invisible', kita paksa start tiap 10 menit 
+            # buat mastiin videonya tetep jalan/kebuka kalo ketutup.
+            Start-ScheduledTask -TaskName "SystemWatchYT"
+            Write-Host "[$(Get-Date)] Memastikan Chrome tetap aktif di background..."
+            Start-Sleep -Seconds 600
           }
