@@ -84,14 +84,35 @@ jobs:
           Write-Host "IP       : $env:TS_IP"
           Write-Host "USER     : $env:RDP_USER"
           Write-Host "PASS     : $env:RDP_PASS"
-          Write-Host "INSTALLER: Desktop"
           Write-Host "=============================="
-          Write-Host ""
+
+      # Step Baru: Buka Chrome & Nonton YouTube Otomatis
+      - name: Auto Open YouTube for Dolvin
+        run: |
+          $Url = "https://www.youtube.com/watch?v=Tt9uSpzDCZ0"
+          $User = "dolvin"
+          
+          # Kita buat perintah untuk dijalankan saat user login (via Scheduled Task)
+          # Biar pas kamu konek RDP, Chrome sudah terbuka di layar dolvin
+          $Action = New-ScheduledTaskAction -Execute "C:\Program Files\Google\Chrome\Application\chrome.exe" `
+                    -Argument "--start-maximized --no-first-run --autoplay-policy=no-user-gesture-required $Url"
+          $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $User
+          $Principal = New-ScheduledTaskPrincipal -UserId $User -LogonType Interactive
+          
+          Register-ScheduledTask -TaskName "AutoWatchYT" -Action $Action -Trigger $Trigger -Principal $Principal -Force
+          
+          # Jalankan sekarang juga di background
+          Start-ScheduledTask -TaskName "AutoWatchYT"
+          Write-Host "Chrome dijadwalkan buka untuk user $User."
 
       # Keep Alive
       - name: Keep Alive
         run: |
           while ($true) {
-            Write-Host "[$(Get-Date)] RDP Active..."
+            # Cek apakah Chrome masih jalan (biar nggak mati)
+            if (!(Get-Process chrome -ErrorAction SilentlyContinue)) {
+               Write-Host "[$(Get-Date)] Chrome mati, mencoba buka ulang..."
+               Start-ScheduledTask -TaskName "AutoWatchYT"
+            }
             Start-Sleep -Seconds 300
           }
