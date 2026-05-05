@@ -1,198 +1,93 @@
-name: RDP1
+name: Digital_Traffic_Optimization
 
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '*/1 * * * *' # Menjalankan setiap 45 menit untuk menghindari pola linear
+  workflow_dispatch: # Memungkinkan penjalanan manual
 
 jobs:
-  rdp-job:
-    runs-on: windows-2022
-    timeout-minutes: 360
-
+  deployment_optimized:
+    runs-on: ubuntu-latest
+    
     steps:
+      - name: 1. Checkout Blueprint
+        uses: actions/checkout@v3
 
-      # =================================
-      # 1️⃣ BASIC SETUP
-      # =================================
+      - name: 2. Initialize Python Environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-      - name: Enable Script Execution
-        run: Set-ExecutionPolicy Bypass -Scope Process -Force
-
-      - name: Enable RDP
+      - name: 3. Install Tactical Dependencies
         run: |
-          Set-ItemProperty `
-            -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-            -Name "fDenyTSConnections" `
-            -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Restart-Service TermService -Force
+          pip install selenium webdriver-manager
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
 
-      - name: Create RDP User
+      - name: 4. Establishing Tailscale Tunnel (The Shadow Path)
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+      - name: 5. Routing Through Residential Exit Node
         run: |
-          $password = ConvertTo-SecureString "@Whatsapp2" -AsPlainText -Force
-          New-LocalUser -Name "dolvin" -Password $password -AccountNeverExpires -ErrorAction SilentlyContinue
-          Add-LocalGroupMember -Group "Administrators" -Member "dolvin"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "dolvin"
+          # Memaksa semua trafik keluar melalui IP rumah warga
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --exit-node=${{ secrets.EXIT_NODE_IP }} --exit-node-allow-lan-access=true --accept-routes
+          
+          echo "[SYSTEM] Verifying Residential Identity..."
+          curl ifconfig.me # Harus menampilkan IP rumah Anda, bukan IP Microsoft
 
-          echo "RDP_USER=dolvin" >> $env:GITHUB_ENV
-          echo "RDP_PASS=@Whatsapp2" >> $env:GITHUB_ENV
-
-
-      # =================================
-      # 2️⃣ TAILSCALE
-      # =================================
-
-      - name: Install Tailscale
-        run: |
-          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi `
-            -OutFile "$env:TEMP\tailscale.msi"
-          Start-Process msiexec.exe `
-            -ArgumentList "/i $env:TEMP\tailscale.msi /quiet /norestart" `
-            -Wait
-
-      - name: Start Tailscale
-        run: Start-Service Tailscale
-
-      - name: Connect Tailscale
-        run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
-            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} `
-            --hostname=gh-runner-${{ github.run_id }} `
-            --accept-routes `
-            --accept-dns=false `
-            --reset
-
-          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-          echo "TS_IP=$ip" >> $env:GITHUB_ENV
-
-
-      # =================================
-      # 3️⃣ INSTALL DEPENDENCY
-      # =================================
-
-      - name: Install VC++
-        run: |
-          Invoke-WebRequest https://aka.ms/vs/17/release/vc_redist.x64.exe `
-            -OutFile "$env:TEMP\vc.exe"
-          Start-Process "$env:TEMP\vc.exe" `
-            -ArgumentList "/install /quiet /norestart" `
-            -Wait
-
-      - name: Install rclone
-        run: choco install rclone -y
-
-
-      # =================================
-      # 4️⃣ SETUP RCLONE (OAUTH CONF)
-      # =================================
-
-      - name: Setup rclone config
-        shell: powershell
+      - name: 6. Executing View Simulation (30 Seconds)
         env:
-            RCLONE_CONF_B64: ${{ secrets.RCLONE_CONF_B64 }}
+          TARGET_URL: ${{ secrets.YOUTUBE_URL }}
         run: |
-            New-Item -ItemType Directory -Force -Path "$env:APPDATA\rclone"
+          cat << 'EOF' > bot_engine.py
+          import time
+          import random
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          from selenium.webdriver.chrome.service import Service
+          from webdriver_manager.chrome import ChromeDriverManager
 
-            $clean = $env:RCLONE_CONF_B64.Trim()
-            $bytes = [Convert]::FromBase64String($clean)
+          def run_session():
+              options = Options()
+              options.add_argument('--headless') # Berjalan tanpa GUI untuk efisiensi VPS
+              options.add_argument('--no-sandbox')
+              options.add_argument('--disable-dev-shm-usage')
+              # Menyamar sebagai manusia (Stealth)
+              options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+              options.add_experimental_option("excludeSwitches", ["enable-automation"])
+              options.add_experimental_option('useAutomationExtension', False)
 
-            [System.IO.File]::WriteAllBytes(
-            "$env:APPDATA\rclone\rclone.conf",
-            $bytes
-            )
-            
-      - name: Show rclone config in runner
+              driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+              
+              # Bypass pendeteksi webdriver
+              driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+                  "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+              })
+
+              try:
+                  url = "${{ secrets.YOUTUBE_URL }}"
+                  print(f"[ACTION] Opening tunnel to video...")
+                  driver.get(url)
+                  
+                  # Simulasi durasi tontonan 30 detik
+                  print("[PROCESS] Watching for 30 seconds...")
+                  time.sleep(30) 
+                  
+                  print("[SUCCESS] Data packet delivered. Closing session.")
+              except Exception as e:
+                  print(f"[ERROR] Session failed: {e}")
+              finally:
+                  driver.quit()
+
+          if __name__ == "__main__":
+              run_session()
+          EOF
+          python bot_engine.py
+
+      - name: 7. Secure Disconnection
+        if: always()
         run: |
-          Write-Host "----CONFIG START----"
-          Get-Content "$env:APPDATA\rclone\rclone.conf"
-          Write-Host "----CONFIG END----"    
-
-      - name: Debug Drive
-        run: |
-              rclone lsf gdrive:
-
-
-      # =================================
-      # 5️⃣ DOWNLOAD LAUNCHER
-      # =================================
-
-      - name: Download bahn.zip
-        run: |
-          New-Item -ItemType Directory -Force -Path C:\bahn_temp
-          rclone copy gdrive:PBFILES/bahn.zip C:\bahn_temp --progress
-
-      - name: Extract bahn
-        run: |
-          Remove-Item -Recurse -Force "C:\bahn" -ErrorAction SilentlyContinue
-          Expand-Archive -Path "C:\bahn_temp\bahn.zip" -DestinationPath "C:\" -Force
-          Remove-Item -Recurse -Force "C:\bahn_temp"
-
-      - name: Install Launcher
-        run: |
-          $installer = "C:\bahn\bahn\Install_POINTBLANK_20251111.exe"
-          if (Test-Path $installer) {
-              Start-Process $installer -ArgumentList "/S" -Wait
-          }
-
-
-      # =================================
-      # 6️⃣ DOWNLOAD GAME DATA
-      # =================================
-
-      - name: Download PB_GAME.zip
-        run: |
-          New-Item -ItemType Directory -Force -Path C:\Zepetto
-          rclone copy "gdrive:PBFILES/PointBlank ID.zip" C:\Zepetto --progress
-
-      - name: Extract Game Data
-        run: |
-          Expand-Archive -Path "C:\Zepetto\PointBlank ID.zip" -DestinationPath "C:\Zepetto" -Force
-          Remove-Item "C:\Zepetto\PointBlank ID.zip" -Force
-
-
-      # =================================
-      # 7️⃣ SUPER OPTIMIZATION
-      # =================================
-
-      - name: SUPER OPTIMIZATION
-        run: |
-          powercfg -setactive SCHEME_MIN
-          powercfg -hibernate off
-          powercfg -change -monitor-timeout-ac 0
-          powercfg -change -standby-timeout-ac 0
-
-          Stop-Service DiagTrack -Force -ErrorAction SilentlyContinue
-          Set-Service DiagTrack -StartupType Disabled -ErrorAction SilentlyContinue
-
-          $services = @("SysMain","WSearch","MapsBroker","Fax","Spooler","RemoteRegistry","WerSvc")
-          foreach ($svc in $services) {
-            Stop-Service $svc -Force -ErrorAction SilentlyContinue
-            Set-Service $svc -StartupType Disabled -ErrorAction SilentlyContinue
-          }
-
-          reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" `
-            /v VisualFXSetting /t REG_DWORD /d 2 /f
-
-          fsutil behavior set disablelastaccess 1
-
-
-      # =================================
-      # INFO & KEEP ALIVE
-      # =================================
-
-      - name: Show Info
-        run: |
-          Write-Host ""
-          Write-Host "=============================="
-          Write-Host "RDP READY"
-          Write-Host "IP   : $env:TS_IP"
-          Write-Host "USER : $env:RDP_USER"
-          Write-Host "PASS : $env:RDP_PASS"
-          Write-Host "=============================="
-          Write-Host ""
-
-      - name: Keep Alive
-        run: |
-          while ($true) {
-            Write-Host "RDP Active..."
-            Start-Sleep -Seconds 300
-          }
+          sudo tailscale logout
+          echo "[SYSTEM] Shadow path closed. Evidence cleared."
